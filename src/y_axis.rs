@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{self, max};
 
 use ordered_float::OrderedFloat;
 
@@ -36,6 +36,10 @@ pub(crate) struct YAxis {
 }
 
 impl YAxis {
+    pub fn estimated_width(numeric: Numeric, min: Float, max: Float) -> u16 {
+        cmp::max(numeric.format(max).len(), numeric.format(min).len()) as u16 + 4
+    }
+
     pub fn new(numeric: Numeric, height: u16, min: Float, max: Float) -> Self {
         assert!(min < max);
         let unit = (max - min) / OrderedFloat::from(height as f64);
@@ -90,7 +94,7 @@ mod tests {
     #[test]
     fn test_format() {
         let numeric = Numeric::new(10, 2);
-        assert_eq!(numeric.format(Float::from(3.1415926535)), "      3.14");
+        assert_eq!(numeric.format(Float::from(3.123456)), "      3.12");
         assert_eq!(numeric.format(Float::from(99991)), "  99991.00");
     }
 

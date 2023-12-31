@@ -11,11 +11,12 @@ use crossterm::{
 };
 use ratatui::prelude::*;
 
-use ratatui_candlestick_chart::Candle;
 use ratatui_candlestick_chart::CandleStickChart;
+use ratatui_candlestick_chart::{Candle, CandleStickChartState};
 
 struct App {
     candles: Vec<Candle>,
+    state: CandleStickChartState,
 }
 
 impl App {
@@ -523,6 +524,7 @@ impl App {
                 Candle::new(1704006780000, 42316.00, 42317.76, 42313.99, 42314.00).unwrap(),
                 Candle::new(1704006840000, 42313.99, 42314.00, 42313.99, 42313.99).unwrap(),
             ],
+            state: CandleStickChartState::default(),
         }
     }
 }
@@ -558,18 +560,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
-    app: App,
+    mut app: App,
     tick_rate: Duration,
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     loop {
-        terminal.draw(|f| ui(f, &app))?;
+        terminal.draw(|f| ui(f, &mut app))?;
 
         let timeout = tick_rate.saturating_sub(last_tick.elapsed());
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
-                if let KeyCode::Char('q') = key.code {
-                    return Ok(());
+                match key.code {
+                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Left => app.state.try_move_backward(),
+                    KeyCode::Right => app.state.try_move_forward(),
+                    _ => {}
                 }
             }
         }
@@ -579,7 +584,7 @@ fn run_app<B: Backend>(
     }
 }
 
-fn ui(f: &mut Frame, app: &App) {
+fn ui(f: &mut Frame, app: &mut App) {
     let chart = CandleStickChart::default().candles(app.candles.clone());
-    f.render_widget(chart, f.size());
+    f.render_stateful_widget(chart, f.size(), &mut app.state);
 }

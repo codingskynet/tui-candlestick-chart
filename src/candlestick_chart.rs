@@ -1,18 +1,19 @@
-use std::cmp::{self, max, min};
+use std::cmp::{max, min};
 
+use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use ratatui::{
     prelude::{Buffer, Rect},
     style::{Style, Styled},
-    widgets::Widget,
+    widgets::StatefulWidget,
 };
-use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
+    candlestick_chart_state::CandleStikcChartInfo,
     symbols::*,
     x_axis::{Interval, XAxis},
     y_axis::{Numeric, YAxis},
-    Float,
+    CandleStickChartState, Float,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,21 +98,12 @@ impl Candle {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct CandleStickChart {
     /// Widget style
     style: Style,
     /// Candle data
     candles: Vec<Candle>,
-}
-
-impl Default for CandleStickChart {
-    fn default() -> Self {
-        Self {
-            style: Style::default(),
-            candles: Vec::new(),
-        }
-    }
 }
 
 impl CandleStickChart {
@@ -138,7 +130,8 @@ impl Styled for CandleStickChart {
     }
 }
 
-impl Widget for CandleStickChart {
+impl StatefulWidget for CandleStickChart {
+    type State = CandleStickChartState;
     /// render like:
     /// |---|-----------------------|
     /// | y |                       |
@@ -157,33 +150,66 @@ impl Widget for CandleStickChart {
     ///     |-----------------------|
     ///
     ///
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         if self.candles.is_empty() {
             return;
         }
 
-        let min = self.candles.iter().map(|c| c.low).min().unwrap();
-        let max = self.candles.iter().map(|c| c.high).max().unwrap();
+        let global_min = self.candles.iter().map(|c| c.low).min().unwrap();
+        let global_max = self.candles.iter().map(|c| c.high).max().unwrap();
 
-        let y_axis = YAxis::new(Numeric::default(), area.height - 3, min, max);
-        let rendered_y_axis = y_axis.render();
-        let mut max_y_axis_width: u16 = 0;
-        for (y, string) in rendered_y_axis.iter().enumerate() {
-            max_y_axis_width = cmp::max(
-                max_y_axis_width,
-                string.graphemes(false).into_iter().count() as u16,
-            );
-            buf.set_string(0, y as u16, string, Style::default());
-        }
+        let y_axis_width: u16 = YAxis::estimated_width(Numeric::default(), global_min, global_max);
+        let chart_width = area.width - y_axis_width;
+        let candles_len = chart_width as usize;
 
-        let chart_width = area.width - max_y_axis_width;
-
-        let timestamp_min = self.candles[0].timestamp;
-        let timestamp_max = if self.candles.len() > chart_width as usize {
-            self.candles[chart_width as usize - 1].timestamp
+        let first_timestamp_cursor = if self.candles.len() > candles_len {
+            self.candles[candles_len - 1].timestamp
         } else {
             self.candles.last().unwrap().timestamp
         };
+
+        state.set_info(CandleStikcChartInfo::new(
+            first_timestamp_cursor,
+            self.candles.last().unwrap().timestamp,
+            Interval::OneMinute,
+        ));
+
+        let skipped_candles_len = if let Some(cursor_timestamp) = state.cursor_timestamp {
+            let count = self
+                .candles
+                .iter()
+                .filter(|c| c.timestamp <= cursor_timestamp)
+                .count();
+
+            if count > candles_len {
+                count - candles_len
+            } else {
+                0
+            }
+        } else if self.candles.len() > candles_len {
+            self.candles.len() - candles_len
+        } else {
+            0
+        };
+
+        let rendered_candles = self
+            .candles
+            .iter()
+            .skip(skipped_candles_len)
+            .take(candles_len)
+            .collect_vec();
+
+        let min = rendered_candles.iter().map(|c| c.low).min().unwrap();
+        let max = rendered_candles.iter().map(|c| c.high).max().unwrap();
+
+        let y_axis = YAxis::new(Numeric::default(), area.height - 3, min, max);
+        let rendered_y_axis = y_axis.render();
+        for (y, string) in rendered_y_axis.iter().enumerate() {
+            buf.set_string(0, y as u16, string, Style::default());
+        }
+
+        let timestamp_min = rendered_candles.first().unwrap().timestamp;
+        let timestamp_max = rendered_candles.last().unwrap().timestamp;
 
         let x_axis = XAxis::new(
             chart_width,
@@ -192,15 +218,10 @@ impl Widget for CandleStickChart {
             Interval::OneMinute,
         );
         let rendered_x_axis = x_axis.render();
-        buf.set_string(
-            max_y_axis_width - 2,
-            area.height - 3,
-            "└──",
-            Style::default(),
-        );
+        buf.set_string(y_axis_width - 2, area.height - 3, "└──", Style::default());
         for (y, string) in rendered_x_axis.iter().enumerate() {
             buf.set_string(
-                max_y_axis_width,
+                y_axis_width,
                 area.height - 3 + y as u16,
                 string,
                 Style::default(),
@@ -208,11 +229,11 @@ impl Widget for CandleStickChart {
         }
 
         // TODO: if chart_width is negative
-        for (x, candle) in self.candles.iter().take(chart_width as usize).enumerate() {
+        for (x, candle) in rendered_candles.iter().enumerate() {
             let rendered = candle.render(&y_axis);
 
             for (y, char) in rendered.iter().enumerate() {
-                buf.get_mut(x as u16 + max_y_axis_width, y as u16)
+                buf.get_mut(x as u16 + y_axis_width, y as u16)
                     .set_symbol(char);
             }
         }
@@ -225,17 +246,17 @@ mod tests {
         assert_buffer_eq,
         buffer::{Buffer, Cell},
         layout::Rect,
-        widgets::Widget,
+        widgets::StatefulWidget,
     };
 
-    use crate::{Candle, CandleStickChart};
+    use crate::{Candle, CandleStickChart, CandleStickChartState};
 
     fn render(widget: CandleStickChart, width: u16, height: u16) -> Buffer {
         let area = Rect::new(0, 0, width, height);
         let mut cell = Cell::default();
         cell.set_symbol("x");
         let mut buffer = Buffer::filled(area, &cell);
-        widget.render(area, &mut buffer);
+        widget.render(area, &mut buffer, &mut CandleStickChartState::default());
         buffer
     }
 

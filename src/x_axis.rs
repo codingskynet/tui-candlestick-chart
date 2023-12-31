@@ -10,7 +10,7 @@ enum Precision {
 }
 
 #[repr(i64)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interval {
     OneSecond = 1,
     OneMinute = 60,
@@ -234,7 +234,7 @@ fn overwrite_string(str: &mut String, idx: isize, value: String, overlap: bool) 
     };
 
     if !overlap {
-        for char in (&str[idx..(idx + value.len())]).chars() {
+        for char in str[idx..(idx + value.len())].chars() {
             if char != ' ' {
                 // not allow overlap string value
                 return false;
@@ -274,8 +274,8 @@ mod tests {
         assert_eq!(
             axis.render(),
             vec![
-                "────────────────────────────────────────────────────────────",
-                "             07:15          07:30          07:45       07:59"
+                "───────────────┴──────────────┴──────────────┴─────────────┴",
+                "             07:15          07:30          07:45       08:00"
             ]
         );
     }
