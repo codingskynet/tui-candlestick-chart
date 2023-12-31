@@ -116,7 +116,12 @@ impl XAxis {
             let (_, now) = timestamps.last().unwrap();
             let rendered = shorted_now_string(prev, *now, self.interval.render_precision());
             result[0].replace_range((width - 1) * 3..width * 3, "┴");
-            overwrite_string(&mut result[1], (width - 1) as isize, rendered, true);
+            overwrite_string(
+                &mut result[1],
+                (width - 1) as isize,
+                format!(" {} ", rendered),
+                true,
+            );
         }
 
         let gap = self.interval.render_gap() as i64 * (self.interval as i64) * 1000;
@@ -132,7 +137,7 @@ impl XAxis {
             let written = overwrite_string(
                 &mut result[1],
                 (idx + 1) as isize - (rendered.len() / 2) as isize,
-                rendered,
+                format!(" {} ", rendered),
                 false,
             );
 
