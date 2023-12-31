@@ -4,7 +4,7 @@ use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use ratatui::{
     prelude::{Buffer, Rect},
-    style::{Style, Styled},
+    style::{Color, Style, Styled},
     widgets::StatefulWidget,
 };
 
@@ -15,6 +15,11 @@ use crate::{
     y_axis::{Numeric, YAxis},
     CandleStickChartState, Float,
 };
+
+enum CandleType {
+    Bearish,
+    Bullish,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Candle {
@@ -40,7 +45,7 @@ impl Candle {
         }
     }
 
-    fn render(&self, y_axis: &YAxis) -> Vec<&str> {
+    fn render(&self, y_axis: &YAxis) -> (CandleType, Vec<&str>) {
         let open = y_axis.calc_y(self.open);
         let close = y_axis.calc_y(self.close);
 
@@ -94,26 +99,57 @@ impl Candle {
             result.push(char);
         }
 
-        result
+        let candle_type = if open <= close {
+            CandleType::Bullish
+        } else {
+            CandleType::Bearish
+        };
+
+        (candle_type, result)
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandleStickChart {
-    /// Widget style
-    style: Style,
+    /// Candle interval
+    interval: Interval,
     /// Candle data
     candles: Vec<Candle>,
+    /// Widget style
+    style: Style,
+    /// Candle style,
+    bearish_color: Color,
+    bullish_color: Color,
 }
 
 impl CandleStickChart {
+    pub fn new(interval: Interval) -> Self {
+        Self {
+            interval,
+            candles: Vec::default(),
+            style: Style::default(),
+            bearish_color: Color::Rgb(234, 74, 90),
+            bullish_color: Color::Rgb(52, 208, 88),
+        }
+    }
+
+    pub fn candles(mut self, candles: Vec<Candle>) -> Self {
+        self.candles = candles;
+        self
+    }
+
     pub fn style(mut self, style: Style) -> Self {
         self.style = style;
         self
     }
 
-    pub fn candles(mut self, candles: Vec<Candle>) -> Self {
-        self.candles = candles;
+    pub fn bearish_color(mut self, color: Color) -> Self {
+        self.bearish_color = color;
+        self
+    }
+
+    pub fn bullish_color(mut self, color: Color) -> Self {
+        self.bullish_color = color;
         self
     }
 }
@@ -171,7 +207,7 @@ impl StatefulWidget for CandleStickChart {
         state.set_info(CandleStikcChartInfo::new(
             first_timestamp_cursor,
             self.candles.last().unwrap().timestamp,
-            Interval::OneMinute,
+            self.interval,
         ));
 
         let skipped_candles_len = if let Some(cursor_timestamp) = state.cursor_timestamp {
@@ -211,12 +247,7 @@ impl StatefulWidget for CandleStickChart {
         let timestamp_min = rendered_candles.first().unwrap().timestamp;
         let timestamp_max = rendered_candles.last().unwrap().timestamp;
 
-        let x_axis = XAxis::new(
-            chart_width,
-            timestamp_min,
-            timestamp_max,
-            Interval::OneMinute,
-        );
+        let x_axis = XAxis::new(chart_width, timestamp_min, timestamp_max, self.interval);
         let rendered_x_axis = x_axis.render();
         buf.set_string(y_axis_width - 2, area.height - 3, "└──", Style::default());
         for (y, string) in rendered_x_axis.iter().enumerate() {
@@ -230,11 +261,17 @@ impl StatefulWidget for CandleStickChart {
 
         // TODO: if chart_width is negative
         for (x, candle) in rendered_candles.iter().enumerate() {
-            let rendered = candle.render(&y_axis);
+            let (candle_type, rendered) = candle.render(&y_axis);
+
+            let color = match candle_type {
+                CandleType::Bearish => self.bearish_color,
+                CandleType::Bullish => self.bullish_color,
+            };
 
             for (y, char) in rendered.iter().enumerate() {
                 buf.get_mut(x as u16 + y_axis_width, y as u16)
-                    .set_symbol(char);
+                    .set_symbol(char)
+                    .set_style(Style::default().fg(color));
             }
         }
     }

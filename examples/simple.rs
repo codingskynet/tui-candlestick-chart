@@ -11,8 +11,8 @@ use crossterm::{
 };
 use ratatui::prelude::*;
 
-use ratatui_candlestick_chart::CandleStickChart;
 use ratatui_candlestick_chart::{Candle, CandleStickChartState};
+use ratatui_candlestick_chart::{CandleStickChart, Interval};
 
 struct App {
     candles: Vec<Candle>,
@@ -585,6 +585,6 @@ fn run_app<B: Backend>(
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
-    let chart = CandleStickChart::default().candles(app.candles.clone());
+    let chart = CandleStickChart::new(Interval::OneMinute).candles(app.candles.clone());
     f.render_stateful_widget(chart, f.size(), &mut app.state);
 }
