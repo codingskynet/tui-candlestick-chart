@@ -102,7 +102,7 @@ impl XAxis {
 
         let mut result = vec!["─".repeat(width), " ".repeat(width)];
 
-        let timestamps = (self.min..self.max)
+        let timestamps = (self.min..=self.max)
             .step_by(self.interval as usize * 1000)
             .map(|t| {
                 let naive = NaiveDateTime::from_timestamp_millis(t).unwrap();
@@ -113,9 +113,10 @@ impl XAxis {
         // handle last timestamp
         {
             let (_, prev) = timestamps[timestamps.len() - 2];
-            let (_, now) = timestamps[timestamps.len() - 1];
-            let rendered = shorted_now_string(prev, now, self.interval.render_precision());
-            overwrite_string(&mut result[1], width as isize, rendered, true);
+            let (_, now) = timestamps.last().unwrap();
+            let rendered = shorted_now_string(prev, *now, self.interval.render_precision());
+            result[0].replace_range((width - 1) * 3..width * 3, "┴");
+            overwrite_string(&mut result[1], (width - 1) as isize, rendered, true);
         }
 
         let gap = self.interval.render_gap() as i64 * (self.interval as i64) * 1000;
@@ -128,12 +129,16 @@ impl XAxis {
             }
 
             let rendered = diff_datetime_string(prev, now);
-            overwrite_string(
+            let written = overwrite_string(
                 &mut result[1],
                 (idx + 1) as isize - (rendered.len() / 2) as isize,
                 rendered,
-                true,
+                false,
             );
+
+            if written {
+                result[0].replace_range((idx + 1) * 3..(idx + 2) * 3, "┴");
+            }
         }
 
         result
@@ -215,7 +220,7 @@ where
     String::default()
 }
 
-fn overwrite_string(str: &mut String, idx: isize, value: String, overlap: bool) {
+fn overwrite_string(str: &mut String, idx: isize, value: String, overlap: bool) -> bool {
     if str.len() < value.len() {
         panic!("target string should be longer than value string")
     }
@@ -232,12 +237,13 @@ fn overwrite_string(str: &mut String, idx: isize, value: String, overlap: bool) 
         for char in (&str[idx..(idx + value.len())]).chars() {
             if char != ' ' {
                 // not allow overlap string value
-                return;
+                return false;
             }
         }
     }
 
     str.replace_range(idx..(idx + value.len()), value.as_str());
+    true
 }
 
 #[cfg(test)]

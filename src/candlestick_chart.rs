@@ -179,7 +179,11 @@ impl Widget for CandleStickChart {
         let chart_width = area.width - max_y_axis_width;
 
         let timestamp_min = self.candles[0].timestamp;
-        let timestamp_max = self.candles[chart_width as usize - 1].timestamp;
+        let timestamp_max = if self.candles.len() > chart_width as usize {
+            self.candles[chart_width as usize - 1].timestamp
+        } else {
+            self.candles.last().unwrap().timestamp
+        };
 
         let x_axis = XAxis::new(
             chart_width,
@@ -189,7 +193,7 @@ impl Widget for CandleStickChart {
         );
         let rendered_x_axis = x_axis.render();
         buf.set_string(
-            max_y_axis_width - 3,
+            max_y_axis_width - 2,
             area.height - 3,
             "└──",
             Style::default(),

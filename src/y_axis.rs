@@ -66,9 +66,9 @@ impl YAxis {
         for i in 0..self.height {
             let rendered = if i % 4 == 0 {
                 let value = self.max - self.unit * OrderedFloat::from(i);
-                format!(" {} │┈ ", self.numeric.format(value))
+                format!(" {} ├ ", self.numeric.format(value))
             } else {
-                format!(" {} │  ", " ".repeat(max_chars))
+                format!(" {} │ ", " ".repeat(max_chars))
             };
 
             result.push(rendered);
