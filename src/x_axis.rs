@@ -80,7 +80,7 @@ pub(crate) struct XAxis {
 
 impl XAxis {
     pub fn new(width: u16, min: i64, max: i64, unit: Interval) -> Self {
-        assert!(min < max);
+        assert!(min <= max);
         Self {
             width,
             min,
@@ -109,40 +109,58 @@ impl XAxis {
                 (t, Utc.from_utc_datetime(&naive))
             })
             .collect_vec();
+        let timestamp_len = timestamps.len();
 
-        // handle last timestamp
-        {
-            let (_, prev) = timestamps[timestamps.len() - 2];
-            let (_, now) = timestamps.last().unwrap();
-            let rendered = shorted_now_string(prev, *now, self.interval.render_precision());
-            result[0].replace_range((width - 1) * 3..width * 3, "┴");
-            overwrite_string(
-                &mut result[1],
-                (width - 1) as isize,
-                format!(" {} ", rendered),
-                true,
-            );
-        }
-
-        let gap = self.interval.render_gap() as i64 * (self.interval as i64) * 1000;
-        for (idx, tuples) in timestamps.windows(2).enumerate() {
-            let (_, prev) = tuples[0];
-            let (timestamp, now) = tuples[1];
-
-            if timestamp % gap != 0 {
-                continue;
-            }
-
-            let rendered = diff_datetime_string(prev, now);
+        if timestamps.len() == 1 {
+            let now = Utc::now();
+            let (_, last) = timestamps.last().unwrap();
+            let rendered = shorted_now_string(now, *last, self.interval.render_precision());
             let written = overwrite_string(
                 &mut result[1],
-                (idx + 1) as isize - (rendered.len() / 2) as isize,
-                format!(" {} ", rendered),
-                false,
+                (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
+                rendered,
+                true,
             );
-
             if written {
-                result[0].replace_range((idx + 1) * 3..(idx + 2) * 3, "┴");
+                result[0].replace_range((timestamp_len - 1) * 3..timestamp_len * 3, "┴");
+            }
+        } else if timestamps.len() > 1 {
+            // handle last timestamp
+            {
+                let (_, prev) = timestamps[timestamp_len - 2];
+                let (_, now) = timestamps.last().unwrap();
+                let rendered = shorted_now_string(prev, *now, self.interval.render_precision());
+                let written = overwrite_string(
+                    &mut result[1],
+                    (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
+                    rendered,
+                    true,
+                );
+                if written {
+                    result[0].replace_range((timestamp_len - 1) * 3..timestamp_len * 3, "┴");
+                }
+            }
+
+            let gap = self.interval.render_gap() as i64 * (self.interval as i64) * 1000;
+            for (idx, tuples) in timestamps.windows(2).enumerate() {
+                let (_, prev) = tuples[0];
+                let (timestamp, now) = tuples[1];
+
+                if timestamp % gap != 0 {
+                    continue;
+                }
+
+                let rendered = diff_datetime_string(prev, now);
+                let written = overwrite_string(
+                    &mut result[1],
+                    (idx + 1) as isize - (rendered.len() / 2) as isize,
+                    format!(" {} ", rendered),
+                    false,
+                );
+
+                if written {
+                    result[0].replace_range((idx + 2) * 3..(idx + 3) * 3, "┴");
+                }
             }
         }
 
@@ -227,7 +245,7 @@ where
 
 fn overwrite_string(str: &mut String, idx: isize, value: String, overlap: bool) -> bool {
     if str.len() < value.len() {
-        panic!("target string should be longer than value string")
+        return false;
     }
 
     let idx = if idx < 0 {

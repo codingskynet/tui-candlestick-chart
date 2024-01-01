@@ -283,10 +283,11 @@ mod tests {
         assert_buffer_eq,
         buffer::{Buffer, Cell},
         layout::Rect,
+        style::{Style, Stylize},
         widgets::StatefulWidget,
     };
 
-    use crate::{Candle, CandleStickChart, CandleStickChartState};
+    use crate::{Candle, CandleStickChart, CandleStickChartState, Interval};
 
     fn render(widget: CandleStickChart, width: u16, height: u16) -> Buffer {
         let area = Rect::new(0, 0, width, height);
@@ -294,20 +295,104 @@ mod tests {
         cell.set_symbol("x");
         let mut buffer = Buffer::filled(area, &cell);
         widget.render(area, &mut buffer, &mut CandleStickChartState::default());
+        buffer.set_style(area, Style::default().reset());
         buffer
     }
 
     #[test]
-    fn simple_candle() {
-        let widget =
-            CandleStickChart::default().candles(vec![Candle::new(1, 0.9, 3.0, 0.0, 2.1).unwrap()]);
-        let buffer = render(widget, 14, 4);
+    fn empty_candle() {
+        let widget = CandleStickChart::new(Interval::OneMinute).candles(vec![]);
+        let buffer = render(widget, 13, 8);
         #[rustfmt::skip]
         assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-            "    3.000 │┈ │",
-            "          │  ┃",
-            "          │  ┃",
-            "          │  │",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+        ]));
+    }
+
+    #[test]
+    fn simple_candle() {
+        let widget = CandleStickChart::new(Interval::OneMinute)
+            .candles(vec![Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap()]);
+        let buffer = render(widget, 13, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            "    3.000 ├ │",
+            "          │ ╽",
+            "          │ ┃",
+            "          │ ╿",
+            "    0.600 ├ │",
+            "xxxxxxxxxx└─┴",
+            "xxxxxxxxxxxx ",
+            "xxxxxxxxxxxxx",
+        ]));
+    }
+
+    #[test]
+    fn simple_candle_with_x_label() {
+        let widget = CandleStickChart::new(Interval::OneMinute)
+            .candles(vec![Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap()]);
+        let buffer = render(widget, 28, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            "    3.000 ├ │xxxxxxxxxxxxxxx",
+            "          │ ╽xxxxxxxxxxxxxxx",
+            "          │ ┃xxxxxxxxxxxxxxx",
+            "          │ ╿xxxxxxxxxxxxxxx",
+            "    0.600 ├ │xxxxxxxxxxxxxxx",
+            "xxxxxxxxxx└─┴───────────────",
+            "xxxxxxxxxxxx1970/01/01 00:00",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        ]));
+    }
+
+    #[test]
+    fn simple_candles_with_x_label() {
+        let widget = CandleStickChart::new(Interval::OneMinute).candles(vec![
+            Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap(),
+            Candle::new(60000, 2.1, 4.2, 3.1, 3.9).unwrap(),
+            Candle::new(120000, 3.9, 4.1, 2.0, 2.3).unwrap(),
+        ]);
+        let buffer = render(widget, 17, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            "    4.200 ├  ╽╽xx",
+            "          │ ╷┃┃xx",
+            "          │ ╽ ╹xx",
+            "          │ ┃  xx",
+            "    0.840 ├ │  xx",
+            "xxxxxxxxxx└───┴──",
+            "xxxxxxxxxxxx00:02",
+            "xxxxxxxxxxxxxxxxx",
+        ]));
+    }
+
+    #[test]
+    fn simple_full_candles_with_x_label() {
+        let widget = CandleStickChart::new(Interval::OneMinute).candles(vec![
+            Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap(),
+            Candle::new(60000, 2.1, 4.2, 3.1, 3.9).unwrap(),
+            Candle::new(120000, 3.9, 4.1, 2.0, 2.3).unwrap(),
+            Candle::new(180000, 2.3, 3.9, 1.3, 2.0).unwrap(),
+            Candle::new(240000, 2.0, 5.2, 0.9, 3.9).unwrap(),
+        ]);
+        let buffer = render(widget, 17, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            "    5.200 ├     │",
+            "          │  ╽╽╷╽",
+            "          │ │┃┃│┃",
+            "          │ ┃  ╵│",
+            "    1.040 ├ │    ",
+            "xxxxxxxxxx└─────┴",
+            "xxxxxxxxxxxx00:04",
+            "xxxxxxxxxxxxxxxxx",
         ]));
     }
 

@@ -29,8 +29,12 @@ pub struct CandleStickChartState {
 impl CandleStickChartState {
     pub(crate) fn set_info(&mut self, info: CandleStikcChartInfo) {
         if let Some(cursor_timestamp) = self.cursor_timestamp {
-            self.cursor_timestamp =
-                Some(cursor_timestamp.clamp(info.first_timestamp, info.last_timestamp));
+            if cursor_timestamp == info.last_timestamp {
+                self.cursor_timestamp = None;
+            } else {
+                self.cursor_timestamp =
+                    Some(cursor_timestamp.clamp(info.first_timestamp, info.last_timestamp));
+            }
         }
         self.info = Some(info);
     }
