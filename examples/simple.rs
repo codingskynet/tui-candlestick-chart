@@ -11,8 +11,8 @@ use crossterm::{
 };
 use ratatui::prelude::*;
 
-use ratatui_candlestick_chart::{Candle, CandleStickChartState};
-use ratatui_candlestick_chart::{CandleStickChart, Interval};
+use tui_candlestick_chart::{Candle, CandleStickChartState};
+use tui_candlestick_chart::{CandleStickChart, Interval};
 
 struct App {
     candles: Vec<Candle>,
