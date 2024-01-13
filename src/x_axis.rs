@@ -10,7 +10,7 @@ enum Precision {
 }
 
 #[repr(i64)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Interval {
     OneSecond = 1,
     OneMinute = 60,
@@ -142,10 +142,9 @@ impl XAxis {
             }
 
             let gap = self.interval.render_gap() as i64 * (self.interval as i64) * 1000;
-            for (idx, tuples) in timestamps.windows(2).enumerate() {
-                let (_, prev) = tuples[0];
-                let (timestamp, now) = tuples[1];
-
+            for (idx, ((_, prev), (timestamp, now))) in
+                timestamps.into_iter().tuple_windows().enumerate()
+            {
                 if timestamp % gap != 0 {
                     continue;
                 }

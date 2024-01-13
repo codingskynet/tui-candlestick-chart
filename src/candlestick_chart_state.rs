@@ -22,7 +22,6 @@ impl CandleStikcChartInfo {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct CandleStickChartState {
     pub(crate) info: Option<CandleStikcChartInfo>,
-
     pub(crate) cursor_timestamp: Option<i64>,
 }
 
