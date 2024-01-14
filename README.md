@@ -1,4 +1,4 @@
-# ratatui-candlestick-chart
+# tui-candlestick-chart
 
 Draw candlestick chart on your ratatui application!
 
