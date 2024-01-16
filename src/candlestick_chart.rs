@@ -138,7 +138,7 @@ impl Candle {
     }
 }
 
-fn test_continuous_graph(chars: Vec<&str>) -> bool {
+fn test_continuous_graph(mut chars: Vec<&str>) -> bool {
     if chars.iter().all(|&c| c == UNICODE_VOID) {
         return false;
     }
@@ -147,8 +147,10 @@ fn test_continuous_graph(chars: Vec<&str>) -> bool {
         return true;
     }
 
-    if chars.len() >= 3 {
-        // check if there is VOID between chars
+    chars.insert(0, UNICODE_VOID);
+
+    // check if there is VOID between chars
+    {
         let mut graphs = 0;
         for (a, b) in chars.clone().into_iter().tuple_windows() {
             if a == UNICODE_VOID && b != UNICODE_VOID {
