@@ -10,7 +10,7 @@ enum Precision {
 }
 
 #[repr(i64)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Interval {
     OneSecond = 1,
     OneMinute = 60,
@@ -80,7 +80,8 @@ pub(crate) struct XAxis {
 
 impl XAxis {
     pub fn new(width: u16, min: i64, max: i64, unit: Interval) -> Self {
-        assert!(min < max);
+        assert!(min <= max);
+
         Self {
             width,
             min,
@@ -100,53 +101,88 @@ impl XAxis {
     pub fn render(&self) -> Vec<String> {
         let width = self.width as usize;
 
-        let mut result = vec!["─".repeat(width), " ".repeat(width)];
+        let mut result = vec![
+            "─".repeat(width).chars().collect_vec(),
+            " ".repeat(width).chars().collect_vec(),
+        ];
 
-        let timestamps = (self.min..=self.max)
+        let full_timestamps = (self.min..=self.max)
             .step_by(self.interval as usize * 1000)
             .map(|t| {
                 let naive = NaiveDateTime::from_timestamp_millis(t).unwrap();
                 (t, Utc.from_utc_datetime(&naive))
             })
             .collect_vec();
+        let full_timestamps_len = full_timestamps.len();
+        let timestamps = if full_timestamps_len > width {
+            full_timestamps
+                .into_iter()
+                .skip(full_timestamps_len - width)
+                .take(width)
+                .collect_vec()
+        } else {
+            full_timestamps
+        };
 
-        // handle last timestamp
-        {
-            let (_, prev) = timestamps[timestamps.len() - 2];
-            let (_, now) = timestamps.last().unwrap();
-            let rendered = shorted_now_string(prev, *now, self.interval.render_precision());
-            result[0].replace_range((width - 1) * 3..width * 3, "┴");
-            overwrite_string(
-                &mut result[1],
-                (width - 1) as isize,
-                format!(" {} ", rendered),
-                true,
-            );
+        let timestamp_len = timestamps.len();
+
+        match timestamp_len as u64 {
+            0 => {}
+            1 => {
+                let now = Utc::now();
+                let (_, last) = timestamps.last().unwrap();
+                let rendered = shorted_now_string(now, *last, self.interval.render_precision());
+                let written = overwrite_chars(
+                    &mut result[1],
+                    (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
+                    rendered,
+                    true,
+                );
+                if written {
+                    result[0][timestamp_len - 1] = '┴';
+                }
+            }
+            2.. => {
+                // handle last timestamp
+                {
+                    let (_, prev) = timestamps[timestamp_len - 2];
+                    let (_, now) = timestamps.last().unwrap();
+                    let rendered = shorted_now_string(prev, *now, self.interval.render_precision());
+                    let written = overwrite_chars(
+                        &mut result[1],
+                        (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
+                        rendered,
+                        true,
+                    );
+                    if written {
+                        result[0][timestamp_len - 1] = '┴';
+                    }
+                }
+
+                let gap = self.interval.render_gap() as i64 * (self.interval as i64) * 1000;
+                for (idx, ((_, prev), (timestamp, now))) in
+                    timestamps.into_iter().tuple_windows().enumerate()
+                {
+                    if timestamp % gap != 0 {
+                        continue;
+                    }
+
+                    let rendered = diff_datetime_string(prev, now);
+                    let written = overwrite_chars(
+                        &mut result[1],
+                        idx as isize - (rendered.len() / 2) as isize,
+                        format!(" {} ", rendered),
+                        false,
+                    );
+
+                    if written {
+                        result[0][idx + 1] = '┴';
+                    }
+                }
+            }
         }
 
-        let gap = self.interval.render_gap() as i64 * (self.interval as i64) * 1000;
-        for (idx, tuples) in timestamps.windows(2).enumerate() {
-            let (_, prev) = tuples[0];
-            let (timestamp, now) = tuples[1];
-
-            if timestamp % gap != 0 {
-                continue;
-            }
-
-            let rendered = diff_datetime_string(prev, now);
-            let written = overwrite_string(
-                &mut result[1],
-                (idx + 1) as isize - (rendered.len() / 2) as isize,
-                format!(" {} ", rendered),
-                false,
-            );
-
-            if written {
-                result[0].replace_range((idx + 1) * 3..(idx + 2) * 3, "┴");
-            }
-        }
-
-        result
+        result.into_iter().map(String::from_iter).collect()
     }
 }
 
@@ -225,21 +261,21 @@ where
     String::default()
 }
 
-fn overwrite_string(str: &mut String, idx: isize, value: String, overlap: bool) -> bool {
-    if str.len() < value.len() {
-        panic!("target string should be longer than value string")
+fn overwrite_chars(chars: &mut Vec<char>, idx: isize, value: String, overlap: bool) -> bool {
+    if chars.len() < value.len() {
+        return false;
     }
 
     let idx = if idx < 0 {
         0
-    } else if str.len() < idx as usize + value.len() {
-        str.len() - value.len()
+    } else if chars.len() < idx as usize + value.len() {
+        chars.len() - value.len()
     } else {
         idx as usize
     };
 
     if !overlap {
-        for char in str[idx..(idx + value.len())].chars() {
+        for &char in &chars[idx..(idx + value.len())] {
             if char != ' ' {
                 // not allow overlap string value
                 return false;
@@ -247,40 +283,58 @@ fn overwrite_string(str: &mut String, idx: isize, value: String, overlap: bool) 
         }
     }
 
-    str.replace_range(idx..(idx + value.len()), value.as_str());
+    chars.splice(
+        idx..(idx + value.len()),
+        value.as_str().chars().collect_vec(),
+    );
+
     true
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::x_axis::{overwrite_string, Interval};
+    use itertools::Itertools;
+
+    use crate::x_axis::{overwrite_chars, Interval};
 
     use super::XAxis;
 
     #[test]
-    fn test_overwrite_string() {
-        let mut str = "x".repeat(10);
-        overwrite_string(&mut str, 2, String::from("yy"), true);
-        assert_eq!(str, String::from("xxyyxxxxxx"));
+    fn test_overwrite_chars() {
+        let mut str = "x".repeat(10).chars().collect_vec();
+        overwrite_chars(&mut str, 2, String::from("yy"), true);
+        assert_eq!(String::from_iter(str), String::from("xxyyxxxxxx"));
 
-        let mut str = "x".repeat(10);
+        let mut str = "x".repeat(10).chars().collect_vec();
 
-        overwrite_string(&mut str, 8, String::from("zzzzz"), true);
-        assert_eq!(str, String::from("xxxxxzzzzz"));
+        overwrite_chars(&mut str, 8, String::from("zzzzz"), true);
+        assert_eq!(String::from_iter(str), String::from("xxxxxzzzzz"));
 
-        let mut str = "x".repeat(10);
-        overwrite_string(&mut str, -2, String::from("zzzzz"), true);
-        assert_eq!(str, String::from("zzzzzxxxxx"));
+        let mut str = "x".repeat(10).chars().collect_vec();
+        overwrite_chars(&mut str, -2, String::from("zzzzz"), true);
+        assert_eq!(String::from_iter(str), String::from("zzzzzxxxxx"));
     }
 
     #[test]
     fn render() {
-        let axis = XAxis::new(60, 1704006000000, 1704009600000, Interval::OneMinute);
+        let axis = XAxis::new(60, 1704006060000, 1704009600000, Interval::OneMinute);
         assert_eq!(
             axis.render(),
             vec![
-                "───────────────┴──────────────┴──────────────┴─────────────┴",
-                "             07:15          07:30          07:45       08:00"
+                "──────────────┴──────────────┴──────────────┴──────────────┴",
+                "            07:15          07:30          07:45        08:00"
+            ]
+        );
+    }
+
+    #[test]
+    fn render_bigger_than_width() {
+        let axis = XAxis::new(30, 1704006060000, 1704009600000, Interval::OneMinute);
+        assert_eq!(
+            axis.render(),
+            vec![
+                "──────────────┴──────────────┴",
+                "            07:45        08:00"
             ]
         );
     }

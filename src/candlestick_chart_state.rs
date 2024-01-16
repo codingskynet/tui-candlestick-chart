@@ -22,15 +22,18 @@ impl CandleStikcChartInfo {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct CandleStickChartState {
     pub(crate) info: Option<CandleStikcChartInfo>,
-
     pub(crate) cursor_timestamp: Option<i64>,
 }
 
 impl CandleStickChartState {
     pub(crate) fn set_info(&mut self, info: CandleStikcChartInfo) {
         if let Some(cursor_timestamp) = self.cursor_timestamp {
-            self.cursor_timestamp =
-                Some(cursor_timestamp.clamp(info.first_timestamp, info.last_timestamp));
+            if cursor_timestamp == info.last_timestamp {
+                self.cursor_timestamp = None;
+            } else {
+                self.cursor_timestamp =
+                    Some(cursor_timestamp.clamp(info.first_timestamp, info.last_timestamp));
+            }
         }
         self.info = Some(info);
     }

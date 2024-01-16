@@ -1,7 +1,4 @@
-use std::cmp::{max, min};
-
 use itertools::Itertools;
-use ordered_float::OrderedFloat;
 use ratatui::{
     prelude::{Buffer, Rect},
     style::{Color, Style, Styled},
@@ -9,105 +6,12 @@ use ratatui::{
 };
 
 use crate::{
+    candle::{Candle, CandleType},
     candlestick_chart_state::CandleStikcChartInfo,
-    symbols::*,
     x_axis::{Interval, XAxis},
     y_axis::{Numeric, YAxis},
-    CandleStickChartState, Float,
+    CandleStickChartState,
 };
-
-enum CandleType {
-    Bearish,
-    Bullish,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Candle {
-    pub timestamp: i64,
-    pub open: Float,
-    pub high: Float,
-    pub low: Float,
-    pub close: Float,
-}
-
-impl Candle {
-    pub fn new(timestamp: i64, open: f64, high: f64, low: f64, close: f64) -> Option<Self> {
-        if high >= low {
-            Some(Self {
-                timestamp,
-                open: OrderedFloat::from(open),
-                high: OrderedFloat::from(high),
-                low: OrderedFloat::from(low),
-                close: OrderedFloat::from(close),
-            })
-        } else {
-            None
-        }
-    }
-
-    fn render(&self, y_axis: &YAxis) -> (CandleType, Vec<&str>) {
-        let open = y_axis.calc_y(self.open);
-        let close = y_axis.calc_y(self.close);
-
-        let min = *min(open, close);
-        let high = *y_axis.calc_y(self.high);
-        let low = *y_axis.calc_y(self.low);
-        let max = *max(open, close);
-
-        let mut result = Vec::new();
-        for y in (0..y_axis.height()).rev() {
-            let y = y as f64;
-
-            let char = if high.ceil() >= y && y >= max.floor() {
-                if max - y > 0.75 {
-                    UNICODE_BODY
-                } else if (max - y) > 0.25 {
-                    if (high - y) > 0.75 {
-                        UNICODE_TOP
-                    } else {
-                        UNICODE_HALF_BODY_BOTTOM
-                    }
-                } else if (high - y) > 0.75 {
-                    UNICODE_WICK
-                } else if (high - y) > 0.25 {
-                    UNICODE_UPPER_WICK
-                } else {
-                    UNICODE_VOID
-                }
-            } else if max.floor() >= y && y >= min.ceil() {
-                UNICODE_BODY
-            } else if min.ceil() >= y && y >= low.floor() {
-                if (min - y) < 0.25 {
-                    UNICODE_BODY
-                } else if (min - y) < 0.75 {
-                    if (low - y) < 0.25 {
-                        UNICODE_BOTTOM
-                    } else {
-                        UNICODE_HALF_BODY_TOP
-                    }
-                } else if low - y < 0.25 {
-                    UNICODE_WICK
-                } else if low - y < 0.75 {
-                    UNICODE_LOWER_WICK
-                } else {
-                    UNICODE_VOID
-                }
-            } else {
-                UNICODE_VOID
-            };
-
-            result.push(char);
-        }
-
-        let candle_type = if open <= close {
-            CandleType::Bullish
-        } else {
-            CandleType::Bearish
-        };
-
-        (candle_type, result)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandleStickChart {
@@ -168,6 +72,7 @@ impl Styled for CandleStickChart {
 
 impl StatefulWidget for CandleStickChart {
     type State = CandleStickChartState;
+
     /// render like:
     /// |---|-----------------------|
     /// | y |                       |
@@ -195,6 +100,10 @@ impl StatefulWidget for CandleStickChart {
         let global_max = self.candles.iter().map(|c| c.high).max().unwrap();
 
         let y_axis_width: u16 = YAxis::estimated_width(Numeric::default(), global_min, global_max);
+        if area.width <= y_axis_width || area.height <= 3 {
+            return;
+        }
+
         let chart_width = area.width - y_axis_width;
         let candles_len = chart_width as usize;
 
@@ -283,10 +192,11 @@ mod tests {
         assert_buffer_eq,
         buffer::{Buffer, Cell},
         layout::Rect,
+        style::{Style, Stylize},
         widgets::StatefulWidget,
     };
 
-    use crate::{Candle, CandleStickChart, CandleStickChartState};
+    use crate::{Candle, CandleStickChart, CandleStickChartState, Interval};
 
     fn render(widget: CandleStickChart, width: u16, height: u16) -> Buffer {
         let area = Rect::new(0, 0, width, height);
@@ -294,37 +204,146 @@ mod tests {
         cell.set_symbol("x");
         let mut buffer = Buffer::filled(area, &cell);
         widget.render(area, &mut buffer, &mut CandleStickChartState::default());
+        buffer.set_style(area, Style::default().reset());
         buffer
     }
 
     #[test]
-    fn simple_candle() {
-        let widget =
-            CandleStickChart::default().candles(vec![Candle::new(1, 0.9, 3.0, 0.0, 2.1).unwrap()]);
-        let buffer = render(widget, 14, 4);
+    fn empty_candle() {
+        let widget = CandleStickChart::new(Interval::OneMinute).candles(vec![]);
+        let buffer = render(widget, 13, 8);
         #[rustfmt::skip]
         assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-            "    3.000 │┈ │",
-            "          │  ┃",
-            "          │  ┃",
-            "          │  │",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
+            "xxxxxxxxxxxxx",
         ]));
     }
 
-    // TODO: fix if not changing OHLC, it cannot be shown on graph
-    // #[test]
-    // fn simple_candle_with_not_changing() {
-    //     let widget = CandleStickChart::default().candles(vec![
-    //         Candle::new(1, 0.0, 100.0, 0.0, 50.0).unwrap(),
-    //         Candle::new(1, 50.0, 50.0, 50.0, 50.0).unwrap(),
-    //     ]);
-    //     let buffer = render(widget, 2, 4);
-    //     #[rustfmt::skip]
-    //     assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-    //         "│ ",
-    //         "┃╻",
-    //         "┃ ",
-    //         "│ ",
-    //     ]));
-    // }
+    #[test]
+    fn simple_candle() {
+        let widget = CandleStickChart::new(Interval::OneMinute)
+            .candles(vec![Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap()]);
+        let buffer = render(widget, 13, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            "    3.000 ├ │",
+            "          │ │",
+            "          │ ┃",
+            "          │ │",
+            "    0.600 ├ │",
+            "xxxxxxxxxx└──",
+            "xxxxxxxxxxxx ",
+            "xxxxxxxxxxxxx",
+        ]));
+    }
+
+    #[test]
+    fn simple_candle_with_x_label() {
+        let widget = CandleStickChart::new(Interval::OneMinute)
+            .candles(vec![Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap()]);
+        let buffer = render(widget, 28, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            "    3.000 ├ │xxxxxxxxxxxxxxx",
+            "          │ │xxxxxxxxxxxxxxx",
+            "          │ ┃xxxxxxxxxxxxxxx",
+            "          │ │xxxxxxxxxxxxxxx",
+            "    0.600 ├ │xxxxxxxxxxxxxxx",
+            "xxxxxxxxxx└─┴───────────────",
+            "xxxxxxxxxxxx1970/01/01 00:00",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        ]));
+    }
+
+    #[test]
+    fn simple_candles_with_x_label() {
+        let widget = CandleStickChart::new(Interval::OneMinute).candles(vec![
+            Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap(),
+            Candle::new(60000, 2.1, 4.2, 2.1, 3.9).unwrap(),
+            Candle::new(120000, 3.9, 4.1, 2.0, 2.3).unwrap(),
+        ]);
+        let buffer = render(widget, 17, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            "    4.200 ├  ╽┃xx",
+            "          │ │┃┃xx",
+            "          │ │╹╿xx",
+            "          │ │  xx",
+            "    0.840 ├ │  xx",
+            "xxxxxxxxxx└───┴──",
+            "xxxxxxxxxxxx00:02",
+            "xxxxxxxxxxxxxxxxx",
+        ]));
+    }
+
+    #[test]
+    fn simple_full_candles_with_x_label() {
+        let widget = CandleStickChart::new(Interval::OneMinute).candles(vec![
+            Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap(),
+            Candle::new(60000, 2.1, 4.2, 2.1, 3.9).unwrap(),
+            Candle::new(120000, 3.9, 4.1, 2.0, 2.3).unwrap(),
+            Candle::new(180000, 2.3, 3.9, 1.3, 2.0).unwrap(),
+            Candle::new(240000, 2.0, 5.2, 0.9, 3.9).unwrap(),
+        ]);
+        let buffer = render(widget, 17, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            "    5.200 ├  ╷  │",
+            "          │  ╽┃││",
+            "          │ │┃╿│┃",
+            "          │ ┃ ╵││",
+            "    1.040 ├ │   ╵",
+            "xxxxxxxxxx└─────┴",
+            "xxxxxxxxxxxx00:04",
+            "xxxxxxxxxxxxxxxxx",
+        ]));
+    }
+
+    #[test]
+    fn simple_candle_with_not_changing() {
+        let widget = CandleStickChart::new(Interval::OneSecond).candles(vec![
+            Candle::new(0, 0.0, 1000.0, 0.0, 50.0).unwrap(),
+            Candle::new(1, 50.0, 50.0, 50.0, 50.0).unwrap(),
+            Candle::new(2, 500.0, 500.0, 500.0, 500.0).unwrap(),
+        ]);
+        let buffer = render(widget, 15, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            " 1000.000 ├ │  ",
+            "          │ │  ",
+            "          │ │ ╻",
+            "          │ │  ",
+            "  200.000 ├ │╻ ",
+            "xxxxxxxxxx└────",
+            "xxxxxxxxxxxx   ",
+            "xxxxxxxxxxxxxxx",
+        ]));
+    }
+
+    #[test]
+    fn simple_candle_with_small_candle() {
+        let widget = CandleStickChart::new(Interval::OneSecond).candles(vec![
+            Candle::new(0, 0.0, 1000.0, 0.0, 50.0).unwrap(),
+            Candle::new(1, 450.0, 580.0, 320.0, 450.0).unwrap(),
+            Candle::new(1, 580.0, 580.0, 320.0, 320.0).unwrap(),
+        ]);
+        let buffer = render(widget, 15, 8);
+        #[rustfmt::skip]
+        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
+            " 1000.000 ├ │  ",
+            "          │ │  ",
+            "          │ │╽┃",
+            "          │ │╵╹",
+            "  200.000 ├ │  ",
+            "xxxxxxxxxx└────",
+            "xxxxxxxxxxxx   ",
+            "xxxxxxxxxxxxxxx",
+        ]));
+    }
 }

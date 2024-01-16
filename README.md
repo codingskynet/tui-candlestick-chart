@@ -1,8 +1,8 @@
-# ratatui-candlestick-chart
+# tui-candlestick-chart
 
 Draw candlestick chart on your ratatui application!
 
-![Demo](https://vhs.charm.sh/vhs-59UwaAzpTIStprhSCt5noh.gif)
+![Demo](https://vhs.charm.sh/vhs-3AE5TagwF38q7kVVNhTZ2T.gif)
 
 ## Reference
 
