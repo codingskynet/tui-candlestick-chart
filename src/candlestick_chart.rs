@@ -54,6 +54,7 @@ impl Candle {
         let low = *y_axis.calc_y(self.low);
         let max = *max(open, close);
 
+        let mut is_body = false;
         let mut result = Vec::new();
         for y in (0..y_axis.height()).rev() {
             let y = y as f64;
@@ -66,9 +67,16 @@ impl Candle {
             let char = if high.ceil() >= y && y >= max.floor() {
                 if high - y > 0.5 {
                     if high_max_diff < 0.25 {
+                        is_body = true;
                         UNICODE_BODY
                     } else if high_max_diff < 0.75 {
-                        UNICODE_TOP
+                        if is_body {
+                            is_body = true;
+                            UNICODE_BODY
+                        } else {
+                            is_body = true;
+                            UNICODE_UP
+                        }
                     } else {
                         UNICODE_WICK
                     }
@@ -76,19 +84,26 @@ impl Candle {
                     if high_max_diff < 0.25 {
                         UNICODE_HALF_BODY_BOTTOM
                     } else {
-                        UNICODE_UPPER_WICK
+                        UNICODE_HALF_WICK_BOTTOM
                     }
                 } else {
                     UNICODE_VOID
                 }
             } else if max.floor() >= y && y >= min.ceil() {
+                is_body = true;
                 UNICODE_BODY
             } else if min.ceil() >= y && y >= low.floor() {
                 if low - y < 0.5 {
                     if min_low_diff < 0.25 {
+                        is_body = true;
                         UNICODE_BODY
                     } else if min_low_diff < 0.75 {
-                        UNICODE_BOTTOM
+                        if is_body {
+                            is_body = false;
+                            UNICODE_DOWN
+                        } else {
+                            UNICODE_WICK
+                        }
                     } else {
                         UNICODE_WICK
                     }
@@ -96,7 +111,7 @@ impl Candle {
                     if min_low_diff < 0.25 {
                         UNICODE_HALF_BODY_TOP
                     } else {
-                        UNICODE_LOWER_WICK
+                        UNICODE_HALF_WICK_TOP
                     }
                 } else {
                     UNICODE_VOID
@@ -108,6 +123,11 @@ impl Candle {
             result.push(char);
         }
 
+        #[cfg(debug_assertions)]
+        if !test_continuous_graph(result.clone()) {
+            tracing::error!("The result of candle rendering is broken. Please report it.")
+        }
+
         let candle_type = if open <= close {
             CandleType::Bullish
         } else {
@@ -116,6 +136,47 @@ impl Candle {
 
         (candle_type, result)
     }
+}
+
+fn test_continuous_graph(chars: Vec<&str>) -> bool {
+    if chars.iter().all(|&c| c == UNICODE_VOID) {
+        return false;
+    }
+
+    if chars.len() <= 1 {
+        return true;
+    }
+
+    if chars.len() >= 3 {
+        // check if there is VOID between chars
+        for (a, b, c) in chars.clone().into_iter().tuple_windows() {
+            match (a, b, c) {
+                (UNICODE_VOID, UNICODE_VOID, _) => {}
+                (_, UNICODE_VOID, UNICODE_VOID) => {}
+                (_, UNICODE_VOID, _) => return false,
+                _ => {}
+            }
+        }
+    }
+
+    for (a, b) in chars.clone().into_iter().tuple_windows() {
+        match (a, b) {
+            (UNICODE_VOID, UNICODE_VOID) => {}
+            (UNICODE_VOID, _) => {}
+            (_, UNICODE_VOID) => {}
+            (UNICODE_BODY, UNICODE_UP | UNICODE_HALF_BODY_BOTTOM | UNICODE_HALF_WICK_BOTTOM) => {
+                return false
+            }
+            (UNICODE_DOWN | UNICODE_HALF_BODY_TOP | UNICODE_HALF_WICK_TOP, UNICODE_BODY) => {
+                return false
+            }
+            (UNICODE_WICK, UNICODE_HALF_BODY_BOTTOM | UNICODE_HALF_WICK_BOTTOM) => return false,
+            (UNICODE_HALF_BODY_TOP | UNICODE_HALF_WICK_TOP, UNICODE_WICK) => return false,
+            _ => {}
+        }
+    }
+
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

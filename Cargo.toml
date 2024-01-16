@@ -8,6 +8,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"]}
 itertools = { version= "0.12", default-features = false, features = ["use_alloc"] }
 ordered-float = { version = "4.0", default-features = false }
 ratatui = { version = "0.25.0", default-features = false }
+tracing = { version = "0.1", default-features = false }
 unicode-segmentation = "1.10.1"
 
 [dev-dependencies]
