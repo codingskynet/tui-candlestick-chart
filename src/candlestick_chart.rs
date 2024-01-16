@@ -270,7 +270,7 @@ impl StatefulWidget for CandleStickChart {
         let global_max = self.candles.iter().map(|c| c.high).max().unwrap();
 
         let y_axis_width: u16 = YAxis::estimated_width(Numeric::default(), global_min, global_max);
-        if area.width <= y_axis_width {
+        if area.width <= y_axis_width || area.height <= 3 {
             return;
         }
 
