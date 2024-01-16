@@ -149,13 +149,15 @@ fn test_continuous_graph(chars: Vec<&str>) -> bool {
 
     if chars.len() >= 3 {
         // check if there is VOID between chars
-        for (a, b, c) in chars.clone().into_iter().tuple_windows() {
-            match (a, b, c) {
-                (UNICODE_VOID, UNICODE_VOID, _) => {}
-                (_, UNICODE_VOID, UNICODE_VOID) => {}
-                (_, UNICODE_VOID, _) => return false,
-                _ => {}
+        let mut graphs = 0;
+        for (a, b) in chars.clone().into_iter().tuple_windows() {
+            if a == UNICODE_VOID && b != UNICODE_VOID {
+                graphs += 1;
             }
+        }
+
+        if graphs > 1 {
+            return false;
         }
     }
 
