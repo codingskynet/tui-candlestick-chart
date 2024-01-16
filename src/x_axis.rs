@@ -126,25 +126,12 @@ impl XAxis {
 
         let timestamp_len = timestamps.len();
 
-        if timestamps.len() == 1 {
-            let now = Utc::now();
-            let (_, last) = timestamps.last().unwrap();
-            let rendered = shorted_now_string(now, *last, self.interval.render_precision());
-            let written = overwrite_chars(
-                &mut result[1],
-                (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
-                rendered,
-                true,
-            );
-            if written {
-                result[0][timestamp_len - 1] = '┴';
-            }
-        } else if timestamps.len() > 1 {
-            // handle last timestamp
-            {
-                let (_, prev) = timestamps[timestamp_len - 2];
-                let (_, now) = timestamps.last().unwrap();
-                let rendered = shorted_now_string(prev, *now, self.interval.render_precision());
+        match timestamp_len as u64 {
+            0 => {}
+            1 => {
+                let now = Utc::now();
+                let (_, last) = timestamps.last().unwrap();
+                let rendered = shorted_now_string(now, *last, self.interval.render_precision());
                 let written = overwrite_chars(
                     &mut result[1],
                     (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
@@ -155,33 +142,47 @@ impl XAxis {
                     result[0][timestamp_len - 1] = '┴';
                 }
             }
-
-            let gap = self.interval.render_gap() as i64 * (self.interval as i64) * 1000;
-            for (idx, ((_, prev), (timestamp, now))) in
-                timestamps.into_iter().tuple_windows().enumerate()
-            {
-                if timestamp % gap != 0 {
-                    continue;
+            2.. => {
+                // handle last timestamp
+                {
+                    let (_, prev) = timestamps[timestamp_len - 2];
+                    let (_, now) = timestamps.last().unwrap();
+                    let rendered = shorted_now_string(prev, *now, self.interval.render_precision());
+                    let written = overwrite_chars(
+                        &mut result[1],
+                        (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
+                        rendered,
+                        true,
+                    );
+                    if written {
+                        result[0][timestamp_len - 1] = '┴';
+                    }
                 }
 
-                let rendered = diff_datetime_string(prev, now);
-                let written = overwrite_chars(
-                    &mut result[1],
-                    idx as isize - (rendered.len() / 2) as isize,
-                    format!(" {} ", rendered),
-                    false,
-                );
+                let gap = self.interval.render_gap() as i64 * (self.interval as i64) * 1000;
+                for (idx, ((_, prev), (timestamp, now))) in
+                    timestamps.into_iter().tuple_windows().enumerate()
+                {
+                    if timestamp % gap != 0 {
+                        continue;
+                    }
 
-                if written {
-                    result[0][idx + 1] = '┴';
+                    let rendered = diff_datetime_string(prev, now);
+                    let written = overwrite_chars(
+                        &mut result[1],
+                        idx as isize - (rendered.len() / 2) as isize,
+                        format!(" {} ", rendered),
+                        false,
+                    );
+
+                    if written {
+                        result[0][idx + 1] = '┴';
+                    }
                 }
             }
         }
 
-        result
-            .into_iter()
-            .map(|chars| String::from_iter(chars))
-            .collect()
+        result.into_iter().map(String::from_iter).collect()
     }
 }
 
