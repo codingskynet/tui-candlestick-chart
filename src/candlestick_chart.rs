@@ -147,13 +147,13 @@ fn test_continuous_graph(mut chars: Vec<&str>) -> bool {
         return true;
     }
 
-    chars.insert(0, UNICODE_VOID);
+    chars.push(UNICODE_VOID);
 
     // check if there is VOID between chars
     {
         let mut graphs = 0;
         for (a, b) in chars.clone().into_iter().tuple_windows() {
-            if a == UNICODE_VOID && b != UNICODE_VOID {
+            if a != UNICODE_VOID && b == UNICODE_VOID {
                 graphs += 1;
             }
         }
