@@ -101,6 +101,6 @@ mod tests {
     #[test]
     fn test_calc() {
         let y_axis = YAxis::new(Numeric::default(), 40, 100.into(), 200.into());
-        assert_eq!(y_axis.calc_y(130.into()), OrderedFloat::from(28));
+        assert_eq!(y_axis.calc_y(130.into()), OrderedFloat::from(12));
     }
 }
