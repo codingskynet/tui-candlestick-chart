@@ -1,6 +1,6 @@
 use core::fmt;
 
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc};
 use itertools::Itertools;
 
 enum Precision {
@@ -38,15 +38,15 @@ impl Interval {
             Interval::FiveMinutes => 12,
             Interval::FifteenMinutes => 8,
             Interval::ThirtyMinutes => 8,
-            Interval::OneHour => todo!(),
-            Interval::TwoHours => todo!(),
-            Interval::FourHours => todo!(),
-            Interval::SixHours => todo!(),
-            Interval::EightHours => todo!(),
-            Interval::TwelveHours => todo!(),
-            Interval::OneDay => todo!(),
-            Interval::ThreeDays => todo!(),
-            Interval::OneWeek => todo!(),
+            Interval::OneHour => 12,
+            Interval::TwoHours => 12,
+            Interval::FourHours => 18,
+            Interval::SixHours => 12,
+            Interval::EightHours => 9,
+            Interval::TwelveHours => 14,
+            Interval::OneDay => 30,
+            Interval::ThreeDays => 30,
+            Interval::OneWeek => 12,
         }
     }
 
@@ -76,17 +76,19 @@ pub(crate) struct XAxis {
     min: i64,
     max: i64,
     interval: Interval,
+    is_realtime: bool,
 }
 
 impl XAxis {
-    pub fn new(width: u16, min: i64, max: i64, unit: Interval) -> Self {
+    pub fn new(width: u16, min: i64, max: i64, interval: Interval, is_realtime: bool) -> Self {
         assert!(min <= max);
 
         Self {
             width,
             min,
             max,
-            interval: unit,
+            interval,
+            is_realtime,
         }
     }
 
@@ -98,7 +100,7 @@ impl XAxis {
     /// 4. year diff        -> YYYY
     ///
     /// worst case: last one is "YYYY-mm-dd HH:MM:SS"(19 chars)
-    pub fn render(&self) -> Vec<String> {
+    pub fn render(&self, time_offset: FixedOffset) -> Vec<String> {
         let width = self.width as usize;
 
         let mut result = vec![
@@ -131,7 +133,14 @@ impl XAxis {
             1 => {
                 let now = Utc::now();
                 let (_, last) = timestamps.last().unwrap();
-                let rendered = shorted_now_string(now, *last, self.interval.render_precision());
+                let rendered =
+                    shorted_now_string(now, *last, self.interval.render_precision(), time_offset);
+                let rendered = if self.is_realtime {
+                    format!("*{}", rendered)
+                } else {
+                    rendered
+                };
+
                 let written = overwrite_chars(
                     &mut result[1],
                     (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
@@ -147,7 +156,17 @@ impl XAxis {
                 {
                     let (_, prev) = timestamps[timestamp_len - 2];
                     let (_, now) = timestamps.last().unwrap();
-                    let rendered = shorted_now_string(prev, *now, self.interval.render_precision());
+                    let rendered = shorted_now_string(
+                        prev,
+                        *now,
+                        self.interval.render_precision(),
+                        time_offset,
+                    );
+                    let rendered = if self.is_realtime {
+                        format!("*{}", rendered)
+                    } else {
+                        rendered
+                    };
                     let written = overwrite_chars(
                         &mut result[1],
                         (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
@@ -190,10 +209,14 @@ fn shorted_now_string<Tz: TimeZone>(
     prev: DateTime<Tz>,
     now: DateTime<Tz>,
     precision: Precision,
+    time_offset: FixedOffset,
 ) -> String
 where
     Tz::Offset: fmt::Display,
 {
+    let prev = prev.with_timezone(&time_offset);
+    let now = now.with_timezone(&time_offset);
+
     let prev_year = prev.format("%Y").to_string();
     let now_year = now.format("%Y").to_string();
     if prev_year != now_year {
@@ -293,11 +316,11 @@ fn overwrite_chars(chars: &mut Vec<char>, idx: isize, value: String, overlap: bo
 
 #[cfg(test)]
 mod tests {
+    use chrono::{Offset, Utc};
     use itertools::Itertools;
 
-    use crate::x_axis::{overwrite_chars, Interval};
-
     use super::XAxis;
+    use crate::x_axis::{overwrite_chars, Interval};
 
     #[test]
     fn test_overwrite_chars() {
@@ -317,9 +340,9 @@ mod tests {
 
     #[test]
     fn render() {
-        let axis = XAxis::new(60, 1704006060000, 1704009600000, Interval::OneMinute);
+        let axis = XAxis::new(60, 1704006060000, 1704009600000, Interval::OneMinute, false);
         assert_eq!(
-            axis.render(),
+            axis.render(Utc.fix()),
             vec![
                 "──────────────┴──────────────┴──────────────┴──────────────┴",
                 "            07:15          07:30          07:45        08:00"
@@ -329,12 +352,12 @@ mod tests {
 
     #[test]
     fn render_bigger_than_width() {
-        let axis = XAxis::new(30, 1704006060000, 1704009600000, Interval::OneMinute);
+        let axis = XAxis::new(30, 1704006060000, 1704009600000, Interval::OneMinute, true);
         assert_eq!(
-            axis.render(),
+            axis.render(Utc.fix()),
             vec![
                 "──────────────┴──────────────┴",
-                "            07:45        08:00"
+                "            07:45       *08:00"
             ]
         );
     }

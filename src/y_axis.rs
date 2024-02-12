@@ -4,14 +4,15 @@ use ordered_float::OrderedFloat;
 
 use crate::Float;
 
-pub(crate) struct Numeric {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Numeric {
     precision: usize,
     scale: usize,
 }
 
 impl Default for Numeric {
     fn default() -> Self {
-        Self::new(8, 3)
+        Self::new(9, 3)
     }
 }
 
@@ -41,7 +42,7 @@ impl YAxis {
     }
 
     pub fn new(numeric: Numeric, height: u16, min: Float, max: Float) -> Self {
-        assert!(min < max);
+        assert!(min <= max);
         let unit = (max - min) / OrderedFloat::from(height as f64);
 
         Self {
