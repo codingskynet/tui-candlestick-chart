@@ -119,8 +119,6 @@ impl StatefulWidget for CandleStickChart {
         // with first/last dummies
         let first_timestamp = self.candles.first().unwrap().timestamp;
         let last_timestamp = self.candles.last().unwrap().timestamp;
-        let y_min = self.candles.iter().map(|c| c.low).min().unwrap();
-        let y_max = self.candles.iter().map(|c| c.high).max().unwrap();
 
         let mut candles = Vec::new();
         for i in (1..=(chart_width as i64 - 1)).rev() {
@@ -158,24 +156,26 @@ impl StatefulWidget for CandleStickChart {
             last_timestamp,
         ));
 
-        let skipped_candles_len = {
-            let count = candles
-                .iter()
-                .filter(|c| c.timestamp <= state.cursor_timestamp.unwrap_or(last_timestamp))
-                .count();
-
-            if count >= chart_width_usize {
-                count - chart_width_usize
-            } else {
-                0
-            }
-        };
-
+        let chart_end_timestamp = state.cursor_timestamp.unwrap_or(last_timestamp);
+        let chart_start_timestamp =
+            chart_end_timestamp - self.interval as i64 * 1000 * (chart_width_usize as i64 - 1);
         let rendered_candles = candles
             .iter()
-            .skip(skipped_candles_len)
-            .take(chart_width_usize)
+            .filter(|c| c.timestamp >= chart_start_timestamp && c.timestamp <= chart_end_timestamp)
             .collect_vec();
+
+        let y_min = rendered_candles
+            .iter()
+            .filter(|c| c.timestamp >= first_timestamp && c.timestamp <= last_timestamp)
+            .map(|c| c.low)
+            .min()
+            .unwrap();
+        let y_max = rendered_candles
+            .iter()
+            .filter(|c| c.timestamp >= first_timestamp && c.timestamp <= last_timestamp)
+            .map(|c| c.high)
+            .max()
+            .unwrap();
 
         let y_axis = YAxis::new(Numeric::default(), area.height - 3, y_min, y_max);
         let rendered_y_axis = y_axis.render();
@@ -204,9 +204,17 @@ impl StatefulWidget for CandleStickChart {
             );
         }
 
+        let mut offset = 0;
+        let mut prev_timestamp =
+            rendered_candles.first().unwrap().timestamp - self.interval as i64 * 1000;
         for (x, candle) in rendered_candles.iter().enumerate() {
             if candle.timestamp < first_timestamp || candle.timestamp > last_timestamp {
+                prev_timestamp = candle.timestamp;
                 continue;
+            }
+            let gap = (candle.timestamp - prev_timestamp) / (self.interval as i64 * 1000);
+            if gap > 1 {
+                offset += gap as u16 - 1;
             }
             let (candle_type, rendered) = candle.render(&y_axis);
 
@@ -216,10 +224,11 @@ impl StatefulWidget for CandleStickChart {
             };
 
             for (y, char) in rendered.iter().enumerate() {
-                buf.get_mut(x as u16 + y_axis_width, y as u16)
+                buf.get_mut(x as u16 + y_axis_width + offset, y as u16)
                     .set_symbol(char)
                     .set_style(Style::default().fg(color));
             }
+            prev_timestamp = candle.timestamp;
         }
     }
 }
@@ -354,11 +363,33 @@ mod tests {
     }
 
     #[test]
+    fn simple_omitted_candles_with_x_label() {
+        let widget = CandleStickChart::new(Interval::OneMinute).candles(vec![
+            Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap(),
+            Candle::new(240000, 2.0, 5.2, 0.9, 3.9).unwrap(),
+        ]);
+        let buffer = render(widget, 19, 8);
+        assert_buffer_eq!(
+            buffer,
+            Buffer::with_lines(vec![
+                "     5.200 ├ x xxx│",
+                "           │ x xxx│",
+                "           │ x│xxx┃",
+                "           │ x┃xxx│",
+                "     1.040 ├ x│xxx╵",
+                "xxxxxxxxxxx└──────┴",
+                "xxxxxxxxxxxxx*00:04",
+                "xxxxxxxxxxxxxxxxxxx",
+            ])
+        );
+    }
+
+    #[test]
     fn simple_candle_with_not_changing() {
         let widget = CandleStickChart::new(Interval::OneSecond).candles(vec![
             Candle::new(0, 0.0, 1000.0, 0.0, 50.0).unwrap(),
-            Candle::new(1, 50.0, 50.0, 50.0, 50.0).unwrap(),
-            Candle::new(2, 500.0, 500.0, 500.0, 500.0).unwrap(),
+            Candle::new(1000, 50.0, 50.0, 50.0, 50.0).unwrap(),
+            Candle::new(2000, 500.0, 500.0, 500.0, 500.0).unwrap(),
         ]);
         let buffer = render(widget, 16, 8);
         assert_buffer_eq!(
@@ -380,8 +411,8 @@ mod tests {
     fn simple_candle_with_small_candle() {
         let widget = CandleStickChart::new(Interval::OneSecond).candles(vec![
             Candle::new(0, 0.0, 1000.0, 0.0, 50.0).unwrap(),
-            Candle::new(1, 450.0, 580.0, 320.0, 450.0).unwrap(),
-            Candle::new(1, 580.0, 580.0, 320.0, 320.0).unwrap(),
+            Candle::new(1000, 450.0, 580.0, 320.0, 450.0).unwrap(),
+            Candle::new(2000, 580.0, 580.0, 320.0, 320.0).unwrap(),
         ]);
         let buffer = render(widget, 16, 8);
         assert_buffer_eq!(
