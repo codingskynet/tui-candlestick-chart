@@ -1,32 +1,27 @@
+use std::{
+    cell::RefCell,
+    cmp::{max, min},
+    collections::BTreeMap,
+    error::Error,
+    io,
+    rc::Rc,
+    time::{Duration, Instant},
+};
+
 use actix_rt::time::sleep;
-use awc::ws;
-use awc::Client;
-use chrono::Offset;
-use chrono::TimeZone;
-use chrono::Utc;
+use awc::{ws, Client};
+use chrono::{Offset, TimeZone, Utc};
 use chrono_tz::Asia;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use futures::prelude::stream::StreamExt;
-use futures::SinkExt;
+use futures::{prelude::stream::StreamExt, SinkExt};
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use ratatui::prelude::*;
-use std::cell::RefCell;
-use std::collections::BTreeMap;
-use std::rc::Rc;
-use std::{
-    cmp::{max, min},
-    error::Error,
-    io,
-    time::{Duration, Instant},
-};
-
-use tui_candlestick_chart::{Candle, CandleStickChartState};
-use tui_candlestick_chart::{CandleStickChart, Interval};
+use tui_candlestick_chart::{Candle, CandleStickChart, CandleStickChartState, Interval};
 
 struct App {
     is_loading_previous_candles: Rc<RefCell<bool>>,

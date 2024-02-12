@@ -316,8 +316,7 @@ fn overwrite_chars(chars: &mut Vec<char>, idx: isize, value: String, overlap: bo
 
 #[cfg(test)]
 mod tests {
-    use chrono::Offset;
-    use chrono::Utc;
+    use chrono::{Offset, Utc};
     use itertools::Itertools;
 
     use super::XAxis;

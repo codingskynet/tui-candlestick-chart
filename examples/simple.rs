@@ -10,9 +10,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::prelude::*;
-
-use tui_candlestick_chart::{Candle, CandleStickChartState};
-use tui_candlestick_chart::{CandleStickChart, Interval};
+use tui_candlestick_chart::{Candle, CandleStickChart, CandleStickChartState, Interval};
 
 struct App {
     candles: Vec<Candle>,
