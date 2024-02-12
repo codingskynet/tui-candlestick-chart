@@ -140,7 +140,6 @@ impl StatefulWidget for CandleStickChart {
             );
         }
 
-        debug_assert!(candles.len() > chart_width_usize);
         let first_timestamp_cursor = candles[chart_width_usize - 1].timestamp;
 
         state.set_info(CandleStikcChartInfo::new(
@@ -156,7 +155,7 @@ impl StatefulWidget for CandleStickChart {
                 .filter(|c| c.timestamp <= state.cursor_timestamp.unwrap_or(last_timestamp))
                 .count();
 
-            if count > chart_width_usize {
+            if count >= chart_width_usize {
                 count - chart_width_usize
             } else {
                 0
@@ -235,54 +234,60 @@ mod tests {
     #[test]
     fn empty_candle() {
         let widget = CandleStickChart::new(Interval::OneMinute).candles(vec![]);
-        let buffer = render(widget, 13, 8);
-        #[rustfmt::skip]
-        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-            "xxxxxxxxxxxxx",
-            "xxxxxxxxxxxxx",
-            "xxxxxxxxxxxxx",
-            "xxxxxxxxxxxxx",
-            "xxxxxxxxxxxxx",
-            "xxxxxxxxxxxxx",
-            "xxxxxxxxxxxxx",
-            "xxxxxxxxxxxxx",
-        ]));
+        let buffer = render(widget, 14, 8);
+        assert_buffer_eq!(
+            buffer,
+            Buffer::with_lines(vec![
+                "xxxxxxxxxxxxxx",
+                "xxxxxxxxxxxxxx",
+                "xxxxxxxxxxxxxx",
+                "xxxxxxxxxxxxxx",
+                "xxxxxxxxxxxxxx",
+                "xxxxxxxxxxxxxx",
+                "xxxxxxxxxxxxxx",
+                "xxxxxxxxxxxxxx",
+            ])
+        );
     }
 
     #[test]
     fn simple_candle() {
         let widget = CandleStickChart::new(Interval::OneMinute)
             .candles(vec![Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap()]);
-        let buffer = render(widget, 13, 8);
-        #[rustfmt::skip]
-        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-            "    3.000 ├ │",
-            "          │ │",
-            "          │ ┃",
-            "          │ │",
-            "    0.600 ├ │",
-            "xxxxxxxxxx└──",
-            "xxxxxxxxxxxx ",
-            "xxxxxxxxxxxxx",
-        ]));
+        let buffer = render(widget, 14, 8);
+        assert_buffer_eq!(
+            buffer,
+            Buffer::with_lines(vec![
+                "     3.000 ├ │",
+                "           │ │",
+                "           │ ┃",
+                "           │ │",
+                "     0.600 ├ │",
+                "xxxxxxxxxxx└──",
+                "xxxxxxxxxxxxx ",
+                "xxxxxxxxxxxxxx",
+            ])
+        );
     }
 
     #[test]
     fn simple_candle_with_x_label() {
         let widget = CandleStickChart::new(Interval::OneMinute)
             .candles(vec![Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap()]);
-        let buffer = render(widget, 28, 8);
-        #[rustfmt::skip]
-        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-            "    3.000 ├ │xxxxxxxxxxxxxxx",
-            "          │ │xxxxxxxxxxxxxxx",
-            "          │ ┃xxxxxxxxxxxxxxx",
-            "          │ │xxxxxxxxxxxxxxx",
-            "    0.600 ├ │xxxxxxxxxxxxxxx",
-            "xxxxxxxxxx└─┴───────────────",
-            "xxxxxxxxxxxx1970/01/01 00:00",
-            "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        ]));
+        let buffer = render(widget, 29, 8);
+        assert_buffer_eq!(
+            buffer,
+            Buffer::with_lines(vec![
+                "     3.000 ├ xxxxxxxxxxxxxxx│",
+                "           │ xxxxxxxxxxxxxxx│",
+                "           │ xxxxxxxxxxxxxxx┃",
+                "           │ xxxxxxxxxxxxxxx│",
+                "     0.600 ├ xxxxxxxxxxxxxxx│",
+                "xxxxxxxxxxx└────────────────┴",
+                "xxxxxxxxxxxxx1970/01/01 00:00",
+                "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            ])
+        );
     }
 
     #[test]
@@ -292,18 +297,20 @@ mod tests {
             Candle::new(60000, 2.1, 4.2, 2.1, 3.9).unwrap(),
             Candle::new(120000, 3.9, 4.1, 2.0, 2.3).unwrap(),
         ]);
-        let buffer = render(widget, 17, 8);
-        #[rustfmt::skip]
-        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-            "    4.200 ├  ╽┃xx",
-            "          │ │┃┃xx",
-            "          │ │╹╿xx",
-            "          │ │  xx",
-            "    0.840 ├ │  xx",
-            "xxxxxxxxxx└───┴──",
-            "xxxxxxxxxxxx00:02",
-            "xxxxxxxxxxxxxxxxx",
-        ]));
+        let buffer = render(widget, 18, 8);
+        assert_buffer_eq!(
+            buffer,
+            Buffer::with_lines(vec![
+                "     4.200 ├ xx ╽┃",
+                "           │ xx│┃┃",
+                "           │ xx│╹╿",
+                "           │ xx│  ",
+                "     0.840 ├ xx│  ",
+                "xxxxxxxxxxx└─────┴",
+                "xxxxxxxxxxxxx00:02",
+                "xxxxxxxxxxxxxxxxxx",
+            ])
+        );
     }
 
     #[test]
@@ -315,18 +322,20 @@ mod tests {
             Candle::new(180000, 2.3, 3.9, 1.3, 2.0).unwrap(),
             Candle::new(240000, 2.0, 5.2, 0.9, 3.9).unwrap(),
         ]);
-        let buffer = render(widget, 17, 8);
-        #[rustfmt::skip]
-        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-            "    5.200 ├  ╷  │",
-            "          │  ╽┃││",
-            "          │ │┃╿│┃",
-            "          │ ┃ ╵││",
-            "    1.040 ├ │   ╵",
-            "xxxxxxxxxx└─────┴",
-            "xxxxxxxxxxxx00:04",
-            "xxxxxxxxxxxxxxxxx",
-        ]));
+        let buffer = render(widget, 18, 8);
+        assert_buffer_eq!(
+            buffer,
+            Buffer::with_lines(vec![
+                "     5.200 ├  ╷  │",
+                "           │  ╽┃││",
+                "           │ │┃╿│┃",
+                "           │ ┃ ╵││",
+                "     1.040 ├ │   ╵",
+                "xxxxxxxxxxx└─────┴",
+                "xxxxxxxxxxxxx00:04",
+                "xxxxxxxxxxxxxxxxxx",
+            ])
+        );
     }
 
     #[test]
@@ -336,18 +345,20 @@ mod tests {
             Candle::new(1, 50.0, 50.0, 50.0, 50.0).unwrap(),
             Candle::new(2, 500.0, 500.0, 500.0, 500.0).unwrap(),
         ]);
-        let buffer = render(widget, 15, 8);
-        #[rustfmt::skip]
-        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-            " 1000.000 ├ │  ",
-            "          │ │  ",
-            "          │ │ ╻",
-            "          │ │  ",
-            "  200.000 ├ │╻ ",
-            "xxxxxxxxxx└────",
-            "xxxxxxxxxxxx   ",
-            "xxxxxxxxxxxxxxx",
-        ]));
+        let buffer = render(widget, 16, 8);
+        assert_buffer_eq!(
+            buffer,
+            Buffer::with_lines(vec![
+                "  1000.000 ├ │  ",
+                "           │ │  ",
+                "           │ │ ╻",
+                "           │ │  ",
+                "   200.000 ├ │╻ ",
+                "xxxxxxxxxxx└────",
+                "xxxxxxxxxxxxx   ",
+                "xxxxxxxxxxxxxxxx",
+            ])
+        );
     }
 
     #[test]
@@ -357,17 +368,19 @@ mod tests {
             Candle::new(1, 450.0, 580.0, 320.0, 450.0).unwrap(),
             Candle::new(1, 580.0, 580.0, 320.0, 320.0).unwrap(),
         ]);
-        let buffer = render(widget, 15, 8);
-        #[rustfmt::skip]
-        assert_buffer_eq!(buffer, Buffer::with_lines(vec![
-            " 1000.000 ├ │  ",
-            "          │ │  ",
-            "          │ │╽┃",
-            "          │ │╵╹",
-            "  200.000 ├ │  ",
-            "xxxxxxxxxx└────",
-            "xxxxxxxxxxxx   ",
-            "xxxxxxxxxxxxxxx",
-        ]));
+        let buffer = render(widget, 16, 8);
+        assert_buffer_eq!(
+            buffer,
+            Buffer::with_lines(vec![
+                "  1000.000 ├ │  ",
+                "           │ │  ",
+                "           │ │╽┃",
+                "           │ │╵╹",
+                "   200.000 ├ │  ",
+                "xxxxxxxxxxx└────",
+                "xxxxxxxxxxxxx   ",
+                "xxxxxxxxxxxxxxxx",
+            ])
+        );
     }
 }
