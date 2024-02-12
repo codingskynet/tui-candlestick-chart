@@ -4,7 +4,8 @@ use ordered_float::OrderedFloat;
 
 use crate::Float;
 
-pub(crate) struct Numeric {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Numeric {
     precision: usize,
     scale: usize,
 }

@@ -20,6 +20,8 @@ pub struct CandleStickChart {
     interval: Interval,
     /// Candle data
     candles: Vec<Candle>,
+    /// y axis scale/precision
+    numeric: Numeric,
     /// Widget style
     style: Style,
     /// Candle style,
@@ -34,6 +36,7 @@ impl CandleStickChart {
         Self {
             interval,
             candles: Vec::default(),
+            numeric: Numeric::default(),
             style: Style::default(),
             bearish_color: Color::Rgb(234, 74, 90),
             bullish_color: Color::Rgb(52, 208, 88),
@@ -43,6 +46,11 @@ impl CandleStickChart {
 
     pub fn candles(mut self, candles: Vec<Candle>) -> Self {
         self.candles = candles;
+        self
+    }
+
+    pub fn y_axis_numeric(mut self, numeric: Numeric) -> Self {
+        self.numeric = numeric;
         self
     }
 
@@ -108,7 +116,8 @@ impl StatefulWidget for CandleStickChart {
         let global_min = self.candles.iter().map(|c| c.low).min().unwrap();
         let global_max = self.candles.iter().map(|c| c.high).max().unwrap();
 
-        let y_axis_width: u16 = YAxis::estimated_width(Numeric::default(), global_min, global_max);
+        let y_axis_width: u16 =
+            YAxis::estimated_width(self.numeric.clone(), global_min, global_max);
         if area.width <= y_axis_width || area.height <= 3 {
             return;
         }
