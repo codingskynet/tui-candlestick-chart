@@ -1,5 +1,6 @@
 use actix_rt::time::sleep;
 use awc::ws;
+use awc::Client;
 use chrono::Offset;
 use chrono::TimeZone;
 use chrono::Utc;
@@ -15,10 +16,10 @@ use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use ratatui::prelude::*;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::{
     cmp::{max, min},
-    collections::HashMap,
     error::Error,
     io,
     time::{Duration, Instant},
@@ -28,14 +29,16 @@ use tui_candlestick_chart::{Candle, CandleStickChartState};
 use tui_candlestick_chart::{CandleStickChart, Interval};
 
 struct App {
-    candles: Rc<RefCell<HashMap<i64, Candle>>>,
+    is_loading_previous_candles: Rc<RefCell<bool>>,
+    candles: Rc<RefCell<BTreeMap<i64, Candle>>>,
     state: CandleStickChartState,
 }
 
 impl App {
     fn new() -> Self {
         Self {
-            candles: Rc::new(RefCell::new(HashMap::new())),
+            is_loading_previous_candles: Rc::new(RefCell::new(false)),
+            candles: Rc::new(RefCell::new(BTreeMap::new())),
             state: CandleStickChartState::default(),
         }
     }
@@ -83,6 +86,20 @@ async fn run_app<B: Backend>(
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 
+        if !*app.is_loading_previous_candles.borrow() {
+            let first_timestamp = app.candles.borrow().keys().next().cloned();
+            if app.state.is_needed_previous_candles() {
+                if let Some(first_timestamp) = first_timestamp {
+                    *app.is_loading_previous_candles.borrow_mut() = true;
+                    actix_rt::spawn(binance_btc_usdt_perp_klines(
+                        app.is_loading_previous_candles.clone(),
+                        first_timestamp,
+                        app.candles.clone(),
+                    ));
+                }
+            }
+        }
+
         let timeout = tick_rate.saturating_sub(last_tick.elapsed());
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
@@ -101,7 +118,7 @@ async fn run_app<B: Backend>(
     }
 }
 
-async fn binance_btc_usdt_perp_agg_trade(candles: Rc<RefCell<HashMap<i64, Candle>>>) {
+async fn binance_btc_usdt_perp_agg_trade(candles: Rc<RefCell<BTreeMap<i64, Candle>>>) {
     let client = awc::Client::builder()
         .max_http_version(awc::http::Version::HTTP_11)
         .finish();
@@ -138,6 +155,42 @@ async fn binance_btc_usdt_perp_agg_trade(candles: Rc<RefCell<HashMap<i64, Candle
             })
             .or_insert(Candle::new(t, *p, *p, *p, *p).unwrap());
     }
+}
+
+async fn binance_btc_usdt_perp_klines(
+    is_loading_previous_candles: Rc<RefCell<bool>>,
+    first_timestamp: i64,
+    candles: Rc<RefCell<BTreeMap<i64, Candle>>>,
+) {
+    let bytes = Client::new()
+        .get(format!(
+            "https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&endTime={}",
+            first_timestamp
+        ))
+        .send()
+        .await
+        .unwrap()
+        .body()
+        .await
+        .unwrap();
+    let json: serde_json::Value =
+        serde_json::from_str(&std::str::from_utf8(&bytes.to_vec()).unwrap()).unwrap();
+
+    let mut candles = candles.borrow_mut();
+    for kline in json.as_array().unwrap() {
+        let data = kline.as_array().unwrap();
+        let timestamp = data[0].as_i64().unwrap();
+        let candle = Candle::new(
+            timestamp,
+            data[1].as_str().unwrap().parse::<f64>().unwrap(),
+            data[2].as_str().unwrap().parse::<f64>().unwrap(),
+            data[3].as_str().unwrap().parse::<f64>().unwrap(),
+            data[4].as_str().unwrap().parse::<f64>().unwrap(),
+        )
+        .unwrap();
+        candles.insert(timestamp, candle);
+    }
+    *is_loading_previous_candles.borrow_mut() = false;
 }
 
 fn ui(f: &mut Frame, app: &mut App) {

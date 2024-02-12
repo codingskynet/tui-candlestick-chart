@@ -8,6 +8,7 @@ pub(crate) struct CandleStikcChartInfo {
     cursor_last_timestamp: i64,
     interval: Interval,
     latest_timestamp: i64,
+    need_previous_candles: bool,
 }
 
 impl CandleStikcChartInfo {
@@ -16,12 +17,14 @@ impl CandleStikcChartInfo {
         cursor_last_timestamp: i64,
         interval: Interval,
         latest_timestamp: i64,
+        need_previous_candles: bool,
     ) -> Self {
         Self {
             cursor_first_timestamp,
             cursor_last_timestamp,
             latest_timestamp,
             interval,
+            need_previous_candles,
         }
     }
 }
@@ -67,6 +70,14 @@ impl CandleStickChartState {
             };
 
             self.cursor_timestamp = Some(min(cursor, info.cursor_last_timestamp));
+        }
+    }
+
+    pub fn is_needed_previous_candles(&self) -> bool {
+        if let Some(info) = &self.info {
+            info.need_previous_candles
+        } else {
+            false
         }
     }
 

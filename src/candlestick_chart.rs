@@ -147,15 +147,6 @@ impl StatefulWidget for CandleStickChart {
             );
         }
 
-        let first_timestamp_cursor = candles[chart_width_usize - 1].timestamp;
-
-        state.set_info(CandleStikcChartInfo::new(
-            first_timestamp_cursor,
-            candles.last().unwrap().timestamp,
-            self.interval,
-            last_timestamp,
-        ));
-
         let chart_end_timestamp = state.cursor_timestamp.unwrap_or(last_timestamp);
         let chart_start_timestamp =
             chart_end_timestamp - self.interval as i64 * 1000 * (chart_width_usize as i64 - 1);
@@ -163,6 +154,14 @@ impl StatefulWidget for CandleStickChart {
             .iter()
             .filter(|c| c.timestamp >= chart_start_timestamp && c.timestamp <= chart_end_timestamp)
             .collect_vec();
+
+        state.set_info(CandleStikcChartInfo::new(
+            candles[chart_width_usize - 1].timestamp,
+            candles.last().unwrap().timestamp,
+            self.interval,
+            last_timestamp,
+            rendered_candles.first().unwrap().timestamp < first_timestamp,
+        ));
 
         let y_min = rendered_candles
             .iter()
