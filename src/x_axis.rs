@@ -76,10 +76,11 @@ pub(crate) struct XAxis {
     min: i64,
     max: i64,
     interval: Interval,
+    is_realtime: bool,
 }
 
 impl XAxis {
-    pub fn new(width: u16, min: i64, max: i64, interval: Interval) -> Self {
+    pub fn new(width: u16, min: i64, max: i64, interval: Interval, is_realtime: bool) -> Self {
         assert!(min <= max);
 
         Self {
@@ -87,6 +88,7 @@ impl XAxis {
             min,
             max,
             interval,
+            is_realtime,
         }
     }
 
@@ -133,6 +135,12 @@ impl XAxis {
                 let (_, last) = timestamps.last().unwrap();
                 let rendered =
                     shorted_now_string(now, *last, self.interval.render_precision(), time_offset);
+                let rendered = if self.is_realtime {
+                    format!("*{}", rendered)
+                } else {
+                    rendered
+                };
+
                 let written = overwrite_chars(
                     &mut result[1],
                     (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
@@ -154,6 +162,11 @@ impl XAxis {
                         self.interval.render_precision(),
                         time_offset,
                     );
+                    let rendered = if self.is_realtime {
+                        format!("*{}", rendered)
+                    } else {
+                        rendered
+                    };
                     let written = overwrite_chars(
                         &mut result[1],
                         (timestamp_len - 1) as isize - (rendered.len() / 2) as isize,
@@ -303,11 +316,12 @@ fn overwrite_chars(chars: &mut Vec<char>, idx: isize, value: String, overlap: bo
 
 #[cfg(test)]
 mod tests {
+    use chrono::Offset;
+    use chrono::Utc;
     use itertools::Itertools;
 
-    use crate::x_axis::{overwrite_chars, Interval};
-
     use super::XAxis;
+    use crate::x_axis::{overwrite_chars, Interval};
 
     #[test]
     fn test_overwrite_chars() {
@@ -327,7 +341,7 @@ mod tests {
 
     #[test]
     fn render() {
-        let axis = XAxis::new(60, 1704006060000, 1704009600000, Interval::OneMinute);
+        let axis = XAxis::new(60, 1704006060000, 1704009600000, Interval::OneMinute, false);
         assert_eq!(
             axis.render(Utc.fix()),
             vec![
@@ -339,12 +353,12 @@ mod tests {
 
     #[test]
     fn render_bigger_than_width() {
-        let axis = XAxis::new(30, 1704006060000, 1704009600000, Interval::OneMinute);
+        let axis = XAxis::new(30, 1704006060000, 1704009600000, Interval::OneMinute, true);
         assert_eq!(
             axis.render(Utc.fix()),
             vec![
                 "──────────────┴──────────────┴",
-                "            07:45        08:00"
+                "            07:45       *08:00"
             ]
         );
     }

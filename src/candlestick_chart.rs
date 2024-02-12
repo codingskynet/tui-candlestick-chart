@@ -186,7 +186,13 @@ impl StatefulWidget for CandleStickChart {
         let timestamp_min = rendered_candles.first().unwrap().timestamp;
         let timestamp_max = rendered_candles.last().unwrap().timestamp;
 
-        let x_axis = XAxis::new(chart_width, timestamp_min, timestamp_max, self.interval);
+        let x_axis = XAxis::new(
+            chart_width,
+            timestamp_min,
+            timestamp_max,
+            self.interval,
+            state.cursor_timestamp.is_none(),
+        );
         let rendered_x_axis = x_axis.render(self.display_timezone);
         buf.set_string(y_axis_width - 2, area.height - 3, "└──", Style::default());
         for (y, string) in rendered_x_axis.iter().enumerate() {
@@ -283,18 +289,18 @@ mod tests {
     fn simple_candle_with_x_label() {
         let widget = CandleStickChart::new(Interval::OneMinute)
             .candles(vec![Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap()]);
-        let buffer = render(widget, 29, 8);
+        let buffer = render(widget, 30, 8);
         assert_buffer_eq!(
             buffer,
             Buffer::with_lines(vec![
-                "     3.000 ├ xxxxxxxxxxxxxxx│",
-                "           │ xxxxxxxxxxxxxxx│",
-                "           │ xxxxxxxxxxxxxxx┃",
-                "           │ xxxxxxxxxxxxxxx│",
-                "     0.600 ├ xxxxxxxxxxxxxxx│",
-                "xxxxxxxxxxx└────────────────┴",
-                "xxxxxxxxxxxxx1970/01/01 00:00",
-                "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "     3.000 ├ xxxxxxxxxxxxxxxx│",
+                "           │ xxxxxxxxxxxxxxxx│",
+                "           │ xxxxxxxxxxxxxxxx┃",
+                "           │ xxxxxxxxxxxxxxxx│",
+                "     0.600 ├ xxxxxxxxxxxxxxxx│",
+                "xxxxxxxxxxx└─────────────────┴",
+                "xxxxxxxxxxxxx*1970/01/01 00:00",
+                "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             ])
         );
     }
@@ -306,18 +312,18 @@ mod tests {
             Candle::new(60000, 2.1, 4.2, 2.1, 3.9).unwrap(),
             Candle::new(120000, 3.9, 4.1, 2.0, 2.3).unwrap(),
         ]);
-        let buffer = render(widget, 18, 8);
+        let buffer = render(widget, 19, 8);
         assert_buffer_eq!(
             buffer,
             Buffer::with_lines(vec![
-                "     4.200 ├ xx ╽┃",
-                "           │ xx│┃┃",
-                "           │ xx│╹╿",
-                "           │ xx│  ",
-                "     0.840 ├ xx│  ",
-                "xxxxxxxxxxx└─────┴",
-                "xxxxxxxxxxxxx00:02",
-                "xxxxxxxxxxxxxxxxxx",
+                "     4.200 ├ xxx ╽┃",
+                "           │ xxx│┃┃",
+                "           │ xxx│╹╿",
+                "           │ xxx│  ",
+                "     0.840 ├ xxx│  ",
+                "xxxxxxxxxxx└──────┴",
+                "xxxxxxxxxxxxx*00:02",
+                "xxxxxxxxxxxxxxxxxxx",
             ])
         );
     }
@@ -331,18 +337,18 @@ mod tests {
             Candle::new(180000, 2.3, 3.9, 1.3, 2.0).unwrap(),
             Candle::new(240000, 2.0, 5.2, 0.9, 3.9).unwrap(),
         ]);
-        let buffer = render(widget, 18, 8);
+        let buffer = render(widget, 19, 8);
         assert_buffer_eq!(
             buffer,
             Buffer::with_lines(vec![
-                "     5.200 ├  ╷  │",
-                "           │  ╽┃││",
-                "           │ │┃╿│┃",
-                "           │ ┃ ╵││",
-                "     1.040 ├ │   ╵",
-                "xxxxxxxxxxx└─────┴",
-                "xxxxxxxxxxxxx00:04",
-                "xxxxxxxxxxxxxxxxxx",
+                "     5.200 ├ x ╷  │",
+                "           │ x ╽┃││",
+                "           │ x│┃╿│┃",
+                "           │ x┃ ╵││",
+                "     1.040 ├ x│   ╵",
+                "xxxxxxxxxxx└──────┴",
+                "xxxxxxxxxxxxx*00:04",
+                "xxxxxxxxxxxxxxxxxxx",
             ])
         );
     }
