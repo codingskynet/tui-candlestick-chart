@@ -1,5 +1,9 @@
 use actix_rt::time::sleep;
 use awc::ws;
+use chrono::Offset;
+use chrono::TimeZone;
+use chrono::Utc;
+use chrono_tz::Asia;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
@@ -7,7 +11,6 @@ use crossterm::{
 };
 use futures::prelude::stream::StreamExt;
 use futures::SinkExt;
-use futures::TryStreamExt;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use ratatui::prelude::*;
@@ -103,17 +106,21 @@ async fn binance_btc_usdt_perp_agg_trade(candles: Rc<RefCell<HashMap<i64, Candle
         .max_http_version(awc::http::Version::HTTP_11)
         .finish();
 
-    let (_resp, mut connection) = client
+    let (_, mut connection) = client
         .ws("wss://fstream.binance.com/ws/btcusdt@aggTrade")
         .connect()
         .await
         .unwrap();
 
-    let _ = connection.next().await.unwrap().unwrap();
-
     loop {
         let response = connection.next().await.unwrap().unwrap();
         let ws::Frame::Text(bytes) = response else {
+            if let ws::Frame::Ping(_) = response {
+                let _ = connection
+                    .send(ws::Message::Pong(([0x0A].as_slice()).into()))
+                    .await
+                    .unwrap();
+            }
             continue;
         };
         let json: serde_json::Value =
@@ -134,13 +141,19 @@ async fn binance_btc_usdt_perp_agg_trade(candles: Rc<RefCell<HashMap<i64, Candle
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
-    let chart = CandleStickChart::new(Interval::OneMinute).candles(
-        app.candles
-            .borrow()
-            .values()
-            .cloned()
-            .sorted_by_key(|c| c.timestamp)
-            .collect_vec(),
-    );
+    let chart = CandleStickChart::new(Interval::OneMinute)
+        .candles(
+            app.candles
+                .borrow()
+                .values()
+                .cloned()
+                .sorted_by_key(|c| c.timestamp)
+                .collect_vec(),
+        )
+        .display_timezone(
+            Asia::Seoul
+                .offset_from_utc_date(&Utc::now().naive_utc().date())
+                .fix(),
+        );
     f.render_stateful_widget(chart, f.size(), &mut app.state);
 }

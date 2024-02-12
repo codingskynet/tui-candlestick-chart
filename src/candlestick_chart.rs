@@ -1,3 +1,4 @@
+use chrono::{FixedOffset, Offset, Utc};
 use itertools::Itertools;
 use ratatui::{
     prelude::{Buffer, Rect},
@@ -24,6 +25,8 @@ pub struct CandleStickChart {
     /// Candle style,
     bearish_color: Color,
     bullish_color: Color,
+    /// display timezone
+    display_timezone: FixedOffset,
 }
 
 impl CandleStickChart {
@@ -34,6 +37,7 @@ impl CandleStickChart {
             style: Style::default(),
             bearish_color: Color::Rgb(234, 74, 90),
             bullish_color: Color::Rgb(52, 208, 88),
+            display_timezone: Utc.fix(),
         }
     }
 
@@ -54,6 +58,11 @@ impl CandleStickChart {
 
     pub fn bullish_color(mut self, color: Color) -> Self {
         self.bullish_color = color;
+        self
+    }
+
+    pub fn display_timezone(mut self, offset: FixedOffset) -> Self {
+        self.display_timezone = offset;
         self
     }
 }
@@ -178,7 +187,7 @@ impl StatefulWidget for CandleStickChart {
         let timestamp_max = rendered_candles.last().unwrap().timestamp;
 
         let x_axis = XAxis::new(chart_width, timestamp_min, timestamp_max, self.interval);
-        let rendered_x_axis = x_axis.render();
+        let rendered_x_axis = x_axis.render(self.display_timezone);
         buf.set_string(y_axis_width - 2, area.height - 3, "└──", Style::default());
         for (y, string) in rendered_x_axis.iter().enumerate() {
             buf.set_string(
