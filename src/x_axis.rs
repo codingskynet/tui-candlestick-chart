@@ -79,14 +79,14 @@ pub(crate) struct XAxis {
 }
 
 impl XAxis {
-    pub fn new(width: u16, min: i64, max: i64, unit: Interval) -> Self {
+    pub fn new(width: u16, min: i64, max: i64, interval: Interval) -> Self {
         assert!(min <= max);
 
         Self {
             width,
             min,
             max,
-            interval: unit,
+            interval,
         }
     }
 

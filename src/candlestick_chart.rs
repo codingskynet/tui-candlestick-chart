@@ -105,49 +105,71 @@ impl StatefulWidget for CandleStickChart {
         }
 
         let chart_width = area.width - y_axis_width;
-        let candles_len = chart_width as usize;
+        let chart_width_usize = chart_width as usize;
 
-        let first_timestamp_cursor = if self.candles.len() > candles_len {
-            self.candles[candles_len - 1].timestamp
-        } else {
-            self.candles.last().unwrap().timestamp
-        };
+        // with first/last dummies
+        let first_timestamp = self.candles.first().unwrap().timestamp;
+        let last_timestamp = self.candles.last().unwrap().timestamp;
+        let y_min = self.candles.iter().map(|c| c.low).min().unwrap();
+        let y_max = self.candles.iter().map(|c| c.high).max().unwrap();
+
+        let mut candles = Vec::new();
+        for i in (1..=(chart_width as i64 - 1)).rev() {
+            candles.push(
+                Candle::new(
+                    first_timestamp - i * self.interval as i64 * 1000,
+                    0.,
+                    0.,
+                    0.,
+                    0.,
+                )
+                .unwrap(),
+            );
+        }
+        candles.extend(self.candles.clone());
+        for i in 1..=(chart_width as i64 - 1) {
+            candles.push(
+                Candle::new(
+                    last_timestamp + i * self.interval as i64 * 1000,
+                    0.,
+                    0.,
+                    0.,
+                    0.,
+                )
+                .unwrap(),
+            );
+        }
+
+        debug_assert!(candles.len() > chart_width_usize);
+        let first_timestamp_cursor = candles[chart_width_usize - 1].timestamp;
 
         state.set_info(CandleStikcChartInfo::new(
             first_timestamp_cursor,
-            self.candles.last().unwrap().timestamp,
+            candles.last().unwrap().timestamp,
             self.interval,
+            last_timestamp,
         ));
 
-        let skipped_candles_len = if let Some(cursor_timestamp) = state.cursor_timestamp {
-            let count = self
-                .candles
+        let skipped_candles_len = {
+            let count = candles
                 .iter()
-                .filter(|c| c.timestamp <= cursor_timestamp)
+                .filter(|c| c.timestamp <= state.cursor_timestamp.unwrap_or(last_timestamp))
                 .count();
 
-            if count > candles_len {
-                count - candles_len
+            if count > chart_width_usize {
+                count - chart_width_usize
             } else {
                 0
             }
-        } else if self.candles.len() > candles_len {
-            self.candles.len() - candles_len
-        } else {
-            0
         };
 
-        let rendered_candles = self
-            .candles
+        let rendered_candles = candles
             .iter()
             .skip(skipped_candles_len)
-            .take(candles_len)
+            .take(chart_width_usize)
             .collect_vec();
 
-        let min = rendered_candles.iter().map(|c| c.low).min().unwrap();
-        let max = rendered_candles.iter().map(|c| c.high).max().unwrap();
-
-        let y_axis = YAxis::new(Numeric::default(), area.height - 3, min, max);
+        let y_axis = YAxis::new(Numeric::default(), area.height - 3, y_min, y_max);
         let rendered_y_axis = y_axis.render();
         for (y, string) in rendered_y_axis.iter().enumerate() {
             buf.set_string(0, y as u16, string, Style::default());
@@ -168,8 +190,10 @@ impl StatefulWidget for CandleStickChart {
             );
         }
 
-        // TODO: if chart_width is negative
         for (x, candle) in rendered_candles.iter().enumerate() {
+            if candle.timestamp < first_timestamp || candle.timestamp > last_timestamp {
+                continue;
+            }
             let (candle_type, rendered) = candle.render(&y_axis);
 
             let color = match candle_type {

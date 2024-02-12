@@ -11,7 +11,7 @@ pub(crate) struct Numeric {
 
 impl Default for Numeric {
     fn default() -> Self {
-        Self::new(8, 3)
+        Self::new(9, 3)
     }
 }
 
