@@ -21,6 +21,9 @@ jobs:
           cargo +nightly fmt -- --check
           cargo clippy -- -D warnings
 
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
       - name: Test
         run: |
           cargo test --all
