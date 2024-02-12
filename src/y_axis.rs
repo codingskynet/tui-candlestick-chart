@@ -41,7 +41,7 @@ impl YAxis {
     }
 
     pub fn new(numeric: Numeric, height: u16, min: Float, max: Float) -> Self {
-        assert!(min < max);
+        assert!(min <= max);
         let unit = (max - min) / OrderedFloat::from(height as f64);
 
         Self {

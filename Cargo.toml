@@ -12,6 +12,10 @@ tracing = { version = "0.1", default-features = false }
 unicode-segmentation = "1.10.1"
 
 [dev-dependencies]
+actix-rt = "2.9.0"
+awc = { version = "3.4.0", features = ["rustls-0_22-webpki-roots"] }
 crossterm = "0.27"
+futures = "0.3.30"
 indoc = "2"
 ratatui = "0.25.0"
+serde_json = "1.0.1"

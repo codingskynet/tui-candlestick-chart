@@ -1,34 +1,45 @@
-use std::{
-    error::Error,
-    io,
-    time::{Duration, Instant},
-};
-
+use actix_rt::time::sleep;
+use awc::ws;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use futures::prelude::stream::StreamExt;
+use futures::SinkExt;
+use futures::TryStreamExt;
+use itertools::Itertools;
+use ordered_float::OrderedFloat;
 use ratatui::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::{
+    cmp::{max, min},
+    collections::HashMap,
+    error::Error,
+    io,
+    time::{Duration, Instant},
+};
 
 use tui_candlestick_chart::{Candle, CandleStickChartState};
 use tui_candlestick_chart::{CandleStickChart, Interval};
 
 struct App {
-    candles: Vec<Candle>,
+    candles: Rc<RefCell<HashMap<i64, Candle>>>,
     state: CandleStickChartState,
 }
 
 impl App {
     fn new() -> Self {
         Self {
-            candles: Vec::new(),
+            candles: Rc::new(RefCell::new(HashMap::new())),
             state: CandleStickChartState::default(),
         }
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[actix_rt::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -37,9 +48,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let tick_rate = Duration::from_millis(250);
     let app = App::new();
-    let res = run_app(&mut terminal, app, tick_rate);
+
+    actix_rt::spawn(binance_btc_usdt_perp_agg_trade(app.candles.clone()));
+
+    let tick_rate = Duration::from_millis(200);
+    let res = run_app(&mut terminal, app, tick_rate).await;
 
     // restore terminal
     disable_raw_mode()?;
@@ -57,7 +71,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn run_app<B: Backend>(
+async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
     tick_rate: Duration,
@@ -80,10 +94,53 @@ fn run_app<B: Backend>(
         if last_tick.elapsed() >= tick_rate {
             last_tick = Instant::now();
         }
+        sleep(Duration::from_millis(10)).await;
+    }
+}
+
+async fn binance_btc_usdt_perp_agg_trade(candles: Rc<RefCell<HashMap<i64, Candle>>>) {
+    let client = awc::Client::builder()
+        .max_http_version(awc::http::Version::HTTP_11)
+        .finish();
+
+    let (_resp, mut connection) = client
+        .ws("wss://fstream.binance.com/ws/btcusdt@aggTrade")
+        .connect()
+        .await
+        .unwrap();
+
+    let _ = connection.next().await.unwrap().unwrap();
+
+    loop {
+        let response = connection.next().await.unwrap().unwrap();
+        let ws::Frame::Text(bytes) = response else {
+            continue;
+        };
+        let json: serde_json::Value =
+            serde_json::from_str(&std::str::from_utf8(&bytes.to_vec()).unwrap()).unwrap();
+
+        let t = json["T"].as_i64().unwrap() / 60_000 * 60_000;
+        let p = OrderedFloat::from(json["p"].as_str().unwrap().parse::<f64>().unwrap());
+        candles
+            .borrow_mut()
+            .entry(t)
+            .and_modify(|c| {
+                c.low = min(c.low, p);
+                c.high = max(c.high, p);
+                c.close = p;
+            })
+            .or_insert(Candle::new(t, *p, *p, *p, *p).unwrap());
     }
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
-    let chart = CandleStickChart::new(Interval::OneMinute).candles(app.candles.clone());
+    let chart = CandleStickChart::new(Interval::OneMinute).candles(
+        app.candles
+            .borrow()
+            .values()
+            .cloned()
+            .sorted_by_key(|c| c.timestamp)
+            .collect_vec(),
+    );
     f.render_stateful_widget(chart, f.size(), &mut app.state);
 }

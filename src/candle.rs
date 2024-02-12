@@ -12,11 +12,11 @@ pub(crate) enum CandleType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Candle {
-    pub(crate) timestamp: i64,
-    pub(crate) open: Float,
-    pub(crate) high: Float,
-    pub(crate) low: Float,
-    pub(crate) close: Float,
+    pub timestamp: i64,
+    pub open: Float,
+    pub high: Float,
+    pub low: Float,
+    pub close: Float,
 }
 
 impl Candle {
@@ -50,8 +50,6 @@ impl Candle {
 
             let high_max_diff = high - max;
             let min_low_diff = min - low;
-            debug_assert!(high_max_diff >= 0.);
-            debug_assert!(min_low_diff >= 0.);
 
             let char = if high.ceil() >= y && y >= max.floor() {
                 if high - y > 0.5 {
