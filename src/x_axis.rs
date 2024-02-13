@@ -1,5 +1,3 @@
-use core::fmt;
-
 use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc};
 use itertools::Itertools;
 
@@ -186,7 +184,7 @@ impl XAxis {
                         continue;
                     }
 
-                    let rendered = diff_datetime_string(prev, now);
+                    let rendered = diff_datetime_string(prev, now, time_offset);
                     let written = overwrite_chars(
                         &mut result[1],
                         idx as isize - (rendered.len() / 2) as isize,
@@ -210,10 +208,7 @@ fn shorted_now_string<Tz: TimeZone>(
     now: DateTime<Tz>,
     precision: Precision,
     time_offset: FixedOffset,
-) -> String
-where
-    Tz::Offset: fmt::Display,
-{
+) -> String {
     let prev = prev.with_timezone(&time_offset);
     let now = now.with_timezone(&time_offset);
 
@@ -253,10 +248,14 @@ where
     String::default()
 }
 
-fn diff_datetime_string<Tz: TimeZone>(prev: DateTime<Tz>, now: DateTime<Tz>) -> String
-where
-    Tz::Offset: fmt::Display,
-{
+fn diff_datetime_string<Tz: TimeZone>(
+    prev: DateTime<Tz>,
+    now: DateTime<Tz>,
+    time_offset: FixedOffset,
+) -> String {
+    let prev = prev.with_timezone(&time_offset);
+    let now = now.with_timezone(&time_offset);
+
     let prev_year = prev.format("%Y").to_string();
     let now_year = now.format("%Y").to_string();
     if prev_year != now_year {
