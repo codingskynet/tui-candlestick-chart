@@ -1,5 +1,6 @@
 use std::cmp::{self, max};
 
+use itertools::Itertools;
 use ordered_float::OrderedFloat;
 
 use crate::Float;
@@ -28,8 +29,21 @@ impl Numeric {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Grid {
+    Accurate,
+    Readable,
+}
+
+impl Default for Grid {
+    fn default() -> Self {
+        Grid::Accurate
+    }
+}
+
 pub(crate) struct YAxis {
     numeric: Numeric,
+    grid: Grid,
     height: u16,
     min: Float,
     max: Float,
@@ -41,12 +55,13 @@ impl YAxis {
         cmp::max(numeric.format(max).len(), numeric.format(min).len()) as u16 + 4
     }
 
-    pub fn new(numeric: Numeric, height: u16, min: Float, max: Float) -> Self {
+    pub fn new(numeric: Numeric, grid: Grid, height: u16, min: Float, max: Float) -> Self {
         assert!(min <= max);
         let unit = (max - min) / OrderedFloat::from(height as f64);
 
         Self {
             numeric,
+            grid,
             height,
             min,
             max,
@@ -68,15 +83,57 @@ impl YAxis {
             self.numeric.format(self.max).len(),
             self.numeric.format(self.min).len(),
         );
-        for i in 0..self.height {
-            let rendered = if i % 4 == 0 {
-                let value = self.max - self.unit * OrderedFloat::from(i);
-                format!(" {} ├ ", self.numeric.format(value))
-            } else {
-                format!(" {} │ ", " ".repeat(max_chars))
-            };
 
-            result.push(rendered);
+        match self.grid {
+            Grid::Accurate => {
+                for i in 0..self.height {
+                    let rendered = if i % 4 == 0 {
+                        let value = self.max - self.unit * OrderedFloat::from(i);
+                        format!(" {} ├ ", self.numeric.format(value))
+                    } else {
+                        format!(" {} │ ", " ".repeat(max_chars))
+                    };
+
+                    result.push(rendered);
+                }
+            }
+            Grid::Readable => {
+                let readable_unit = 10f64.powi((*self.unit).log10() as i32);
+                // multiple of 1, 5, or 10 * readable_unit
+                let min_space = 4;
+                let co = (min_space as f64 * *self.unit / readable_unit) as i32;
+
+                let actual_unit = [1, 5, 10, 20, 50, 100]
+                    .into_iter()
+                    .filter(|c| *c >= co)
+                    .next()
+                    .unwrap() as f64
+                    * readable_unit;
+
+                for (high, low) in (0..=self.height)
+                    .into_iter()
+                    .map(|i| self.max - self.unit * OrderedFloat::from(i))
+                    .tuple_windows()
+                {
+                    let mid = (*high + *low) / 2.;
+
+                    let mark = (((*low / actual_unit) as i32)..=(*high / actual_unit) as i32)
+                        .into_iter()
+                        .map(|c| c as f64 * actual_unit)
+                        .filter(|mark| *low <= *mark && *mark <= *high)
+                        .map(|mark| (OrderedFloat::from((mark - mid).abs()), mark))
+                        .sorted_by(|a, b| a.0.cmp(&b.0))
+                        .next();
+
+                    let rendered = if let Some((_, mark)) = mark {
+                        format!(" {} ├ ", self.numeric.format(mark.into()))
+                    } else {
+                        format!(" {} │ ", " ".repeat(max_chars))
+                    };
+
+                    result.push(rendered);
+                }
+            }
         }
 
         result
@@ -87,10 +144,8 @@ impl YAxis {
 mod tests {
     use ordered_float::OrderedFloat;
 
-    use crate::{
-        y_axis::{Numeric, YAxis},
-        Float,
-    };
+    use super::*;
+    use crate::Float;
 
     #[test]
     fn test_format() {
@@ -101,7 +156,13 @@ mod tests {
 
     #[test]
     fn test_calc() {
-        let y_axis = YAxis::new(Numeric::default(), 40, 100.into(), 200.into());
+        let y_axis = YAxis::new(
+            Numeric::default(),
+            Grid::default(),
+            40,
+            100.into(),
+            200.into(),
+        );
         assert_eq!(y_axis.calc_y(130.into()), OrderedFloat::from(12));
     }
 }

@@ -21,7 +21,7 @@ use futures::{prelude::stream::StreamExt, SinkExt};
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use ratatui::prelude::*;
-use tui_candlestick_chart::{Candle, CandleStickChart, CandleStickChartState, Interval};
+use tui_candlestick_chart::{Candle, CandleStickChart, CandleStickChartState, Grid, Interval};
 
 struct App {
     is_loading_previous_candles: Rc<RefCell<bool>>,
@@ -198,6 +198,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                 .sorted_by_key(|c| c.timestamp)
                 .collect_vec(),
         )
+        .y_grid(Grid::Readable)
         .display_timezone(
             Asia::Seoul
                 .offset_from_utc_date(&Utc::now().naive_utc().date())

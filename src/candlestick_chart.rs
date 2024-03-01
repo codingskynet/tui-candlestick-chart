@@ -10,7 +10,7 @@ use crate::{
     candle::{Candle, CandleType},
     candlestick_chart_state::CandleStikcChartInfo,
     x_axis::{Interval, XAxis},
-    y_axis::{Numeric, YAxis},
+    y_axis::{Grid, Numeric, YAxis},
     CandleStickChartState,
 };
 
@@ -22,6 +22,8 @@ pub struct CandleStickChart {
     candles: Vec<Candle>,
     /// y axis scale/precision
     numeric: Numeric,
+    /// y axis grid
+    y_grid: Grid,
     /// Widget style
     style: Style,
     /// Candle style,
@@ -37,6 +39,7 @@ impl CandleStickChart {
             interval,
             candles: Vec::default(),
             numeric: Numeric::default(),
+            y_grid: Grid::default(),
             style: Style::default(),
             bearish_color: Color::Rgb(234, 74, 90),
             bullish_color: Color::Rgb(52, 208, 88),
@@ -51,6 +54,11 @@ impl CandleStickChart {
 
     pub fn y_axis_numeric(mut self, numeric: Numeric) -> Self {
         self.numeric = numeric;
+        self
+    }
+
+    pub fn y_grid(mut self, grid: Grid) -> Self {
+        self.y_grid = grid;
         self
     }
 
@@ -185,7 +193,7 @@ impl StatefulWidget for CandleStickChart {
             .max()
             .unwrap();
 
-        let y_axis = YAxis::new(Numeric::default(), area.height - 3, y_min, y_max);
+        let y_axis = YAxis::new(self.numeric, self.y_grid, area.height - 3, y_min, y_max);
         let rendered_y_axis = y_axis.render();
         for (y, string) in rendered_y_axis.iter().enumerate() {
             buf.set_string(0, y as u16, string, Style::default());
