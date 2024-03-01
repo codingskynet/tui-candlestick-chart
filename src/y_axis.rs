@@ -29,16 +29,11 @@ impl Numeric {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum Grid {
+    #[default]
     Accurate,
     Readable,
-}
-
-impl Default for Grid {
-    fn default() -> Self {
-        Grid::Accurate
-    }
 }
 
 pub(crate) struct YAxis {
@@ -105,20 +100,17 @@ impl YAxis {
 
                 let actual_unit = [1, 5, 10, 20, 50, 100]
                     .into_iter()
-                    .filter(|c| *c >= co)
-                    .next()
+                    .find(|c| *c >= co)
                     .unwrap() as f64
                     * readable_unit;
 
                 for (high, low) in (0..=self.height)
-                    .into_iter()
                     .map(|i| self.max - self.unit * OrderedFloat::from(i))
                     .tuple_windows()
                 {
                     let mid = (*high + *low) / 2.;
 
                     let mark = (((*low / actual_unit) as i32)..=(*high / actual_unit) as i32)
-                        .into_iter()
                         .map(|c| c as f64 * actual_unit)
                         .filter(|mark| *low <= *mark && *mark <= *high)
                         .map(|mark| (OrderedFloat::from((mark - mid).abs()), mark))
