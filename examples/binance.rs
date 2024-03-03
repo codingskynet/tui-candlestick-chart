@@ -21,7 +21,11 @@ use futures::{prelude::stream::StreamExt, SinkExt};
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use ratatui::prelude::*;
-use tui_candlestick_chart::{Candle, CandleStickChart, CandleStickChartState, Grid, Interval};
+use tui_candlestick_chart::{
+    Candle, CandleStickChart, CandleStickChartState, Grid, Interval, Numeric,
+};
+
+const SYMBOL: &str = "BTCUSDT";
 
 struct App {
     is_loading_previous_candles: Rc<RefCell<bool>>,
@@ -51,7 +55,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // create app and run it
     let app = App::new();
 
-    actix_rt::spawn(binance_btc_usdt_perp_agg_trade(app.candles.clone()));
+    actix_rt::spawn(binance_perp_agg_trade(app.candles.clone()));
 
     let tick_rate = Duration::from_millis(200);
     let res = run_app(&mut terminal, app, tick_rate).await;
@@ -86,7 +90,7 @@ async fn run_app<B: Backend>(
             if app.state.is_needed_previous_candles() {
                 if let Some(first_timestamp) = first_timestamp {
                     *app.is_loading_previous_candles.borrow_mut() = true;
-                    actix_rt::spawn(binance_btc_usdt_perp_klines(
+                    actix_rt::spawn(binance_perp_klines(
                         app.is_loading_previous_candles.clone(),
                         first_timestamp,
                         app.candles.clone(),
@@ -113,13 +117,16 @@ async fn run_app<B: Backend>(
     }
 }
 
-async fn binance_btc_usdt_perp_agg_trade(candles: Rc<RefCell<BTreeMap<i64, Candle>>>) {
+async fn binance_perp_agg_trade(candles: Rc<RefCell<BTreeMap<i64, Candle>>>) {
     let client = awc::Client::builder()
         .max_http_version(awc::http::Version::HTTP_11)
         .finish();
 
     let (_, mut connection) = client
-        .ws("wss://fstream.binance.com/ws/btcusdt@aggTrade")
+        .ws(format!(
+            "wss://fstream.binance.com/ws/{}@aggTrade",
+            SYMBOL.to_lowercase()
+        ))
         .connect()
         .await
         .unwrap();
@@ -152,15 +159,15 @@ async fn binance_btc_usdt_perp_agg_trade(candles: Rc<RefCell<BTreeMap<i64, Candl
     }
 }
 
-async fn binance_btc_usdt_perp_klines(
+async fn binance_perp_klines(
     is_loading_previous_candles: Rc<RefCell<bool>>,
     first_timestamp: i64,
     candles: Rc<RefCell<BTreeMap<i64, Candle>>>,
 ) {
     let bytes = Client::new()
         .get(format!(
-            "https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1m&endTime={}",
-            first_timestamp
+            "https://fapi.binance.com/fapi/v1/klines?symbol={}&interval=1m&endTime={}",
+            SYMBOL, first_timestamp
         ))
         .send()
         .await

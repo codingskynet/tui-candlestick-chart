@@ -20,8 +20,8 @@ pub struct CandleStickChart {
     interval: Interval,
     /// Candle data
     candles: Vec<Candle>,
-    /// y axis scale/precision
-    numeric: Numeric,
+    /// y axis scale/precision, None is auto
+    numeric: Option<Numeric>,
     /// y axis grid
     y_grid: Grid,
     /// Widget style
@@ -38,7 +38,7 @@ impl CandleStickChart {
         Self {
             interval,
             candles: Vec::default(),
-            numeric: Numeric::default(),
+            numeric: None,
             y_grid: Grid::default(),
             style: Style::default(),
             bearish_color: Color::Rgb(234, 74, 90),
@@ -53,7 +53,7 @@ impl CandleStickChart {
     }
 
     pub fn y_axis_numeric(mut self, numeric: Numeric) -> Self {
-        self.numeric = numeric;
+        self.numeric = Some(numeric);
         self
     }
 

@@ -22,6 +22,29 @@ impl Numeric {
         Self { precision, scale }
     }
 
+    pub fn auto_from_min_max(min: Float, max: Float) -> Self {
+        let diff = max - min;
+        let diff_formatted = format!("{:e}", diff);
+
+        let scale = {
+            let significant_digits = diff_formatted.split('e').next().unwrap();
+            if significant_digits.contains('.') {
+                significant_digits.len() - 1
+            } else {
+                significant_digits.len()
+            }
+        };
+
+        let max_digit_pos = max.abs().log10();
+
+        let precision = if max_digit_pos < 0. {
+            2 + max_digit_pos.floor().abs() as usize + scale
+        } else {
+            max_digit_pos.ceil() as usize + scale
+        };
+        Self { precision, scale }
+    }
+
     pub fn format(&self, value: Float) -> String {
         let precision = self.precision;
         let scale = self.scale;
@@ -46,13 +69,16 @@ pub(crate) struct YAxis {
 }
 
 impl YAxis {
-    pub fn estimated_width(numeric: Numeric, min: Float, max: Float) -> u16 {
+    pub fn estimated_width(numeric: Option<Numeric>, min: Float, max: Float) -> u16 {
+        let numeric = numeric.unwrap_or_else(|| Numeric::auto_from_min_max(min, max));
         cmp::max(numeric.format(max).len(), numeric.format(min).len()) as u16 + 4
     }
 
-    pub fn new(numeric: Numeric, grid: Grid, height: u16, min: Float, max: Float) -> Self {
+    pub fn new(numeric: Option<Numeric>, grid: Grid, height: u16, min: Float, max: Float) -> Self {
         assert!(min <= max);
         let unit = (max - min) / OrderedFloat::from(height as f64);
+
+        let numeric = numeric.unwrap_or_else(|| Numeric::auto_from_min_max(min, max));
 
         Self {
             numeric,
@@ -148,13 +174,7 @@ mod tests {
 
     #[test]
     fn test_calc() {
-        let y_axis = YAxis::new(
-            Numeric::default(),
-            Grid::default(),
-            40,
-            100.into(),
-            200.into(),
-        );
+        let y_axis = YAxis::new(None, Grid::default(), 40, 100.into(), 200.into());
         assert_eq!(y_axis.calc_y(130.into()), OrderedFloat::from(12));
     }
 }
