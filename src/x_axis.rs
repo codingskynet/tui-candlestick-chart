@@ -1,4 +1,4 @@
-use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, FixedOffset, TimeZone, Utc};
 use itertools::Itertools;
 
 enum Precision {
@@ -108,10 +108,7 @@ impl XAxis {
 
         let full_timestamps = (self.min..=self.max)
             .step_by(self.interval as usize * 1000)
-            .map(|t| {
-                let naive = NaiveDateTime::from_timestamp_millis(t).unwrap();
-                (t, Utc.from_utc_datetime(&naive))
-            })
+            .map(|t| (t, DateTime::from_timestamp_millis(t).unwrap()))
             .collect_vec();
         let full_timestamps_len = full_timestamps.len();
         let timestamps = if full_timestamps_len > width {

@@ -79,7 +79,9 @@ async fn run_app<B: Backend>(
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     loop {
-        terminal.draw(|f| ui(f, &mut app))?;
+        terminal
+            .draw(|f| ui(f, &mut app))
+            .expect("Failed to draw terminal frame");
 
         if !*app.is_loading_previous_candles.borrow() {
             let first_timestamp = app.candles.borrow().keys().next().cloned();
@@ -203,5 +205,5 @@ fn ui(f: &mut Frame, app: &mut App) {
                 .offset_from_utc_date(&Utc::now().naive_utc().date())
                 .fix(),
         );
-    f.render_stateful_widget(chart, f.size(), &mut app.state);
+    f.render_stateful_widget(chart, f.area(), &mut app.state);
 }

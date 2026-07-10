@@ -563,7 +563,9 @@ fn run_app<B: Backend>(
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     loop {
-        terminal.draw(|f| ui(f, &mut app))?;
+        terminal
+            .draw(|f| ui(f, &mut app))
+            .expect("Failed to draw terminal frame");
 
         let timeout = tick_rate.saturating_sub(last_tick.elapsed());
         if crossterm::event::poll(timeout)? {
@@ -584,5 +586,5 @@ fn run_app<B: Backend>(
 
 fn ui(f: &mut Frame, app: &mut App) {
     let chart = CandleStickChart::new(Interval::OneMinute).candles(app.candles.clone());
-    f.render_stateful_widget(chart, f.size(), &mut app.state);
+    f.render_stateful_widget(chart, f.area(), &mut app.state);
 }

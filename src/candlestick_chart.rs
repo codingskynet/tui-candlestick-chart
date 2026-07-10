@@ -82,8 +82,8 @@ impl Styled for CandleStickChart {
         self.style
     }
 
-    fn set_style(self, style: Style) -> Self::Item {
-        self.style(style)
+    fn set_style<S: Into<Style>>(self, style: S) -> Self::Item {
+        self.style(style.into())
     }
 }
 
@@ -232,7 +232,7 @@ impl StatefulWidget for CandleStickChart {
             };
 
             for (y, char) in rendered.iter().enumerate() {
-                buf.get_mut(x as u16 + y_axis_width + offset, y as u16)
+                buf[(x as u16 + y_axis_width + offset, y as u16)]
                     .set_symbol(char)
                     .set_style(Style::default().fg(color));
             }
@@ -244,10 +244,9 @@ impl StatefulWidget for CandleStickChart {
 #[cfg(test)]
 mod tests {
     use ratatui::{
-        assert_buffer_eq,
         buffer::{Buffer, Cell},
         layout::Rect,
-        style::{Style, Stylize},
+        style::Style,
         widgets::StatefulWidget,
     };
 
@@ -257,9 +256,9 @@ mod tests {
         let area = Rect::new(0, 0, width, height);
         let mut cell = Cell::default();
         cell.set_symbol("x");
-        let mut buffer = Buffer::filled(area, &cell);
+        let mut buffer = Buffer::filled(area, cell);
         widget.render(area, &mut buffer, &mut CandleStickChartState::default());
-        buffer.set_style(area, Style::default().reset());
+        buffer.set_style(area, Style::reset());
         buffer
     }
 
@@ -267,7 +266,7 @@ mod tests {
     fn empty_candle() {
         let widget = CandleStickChart::new(Interval::OneMinute).candles(vec![]);
         let buffer = render(widget, 14, 8);
-        assert_buffer_eq!(
+        assert_eq!(
             buffer,
             Buffer::with_lines(vec![
                 "xxxxxxxxxxxxxx",
@@ -287,7 +286,7 @@ mod tests {
         let widget = CandleStickChart::new(Interval::OneMinute)
             .candles(vec![Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap()]);
         let buffer = render(widget, 14, 8);
-        assert_buffer_eq!(
+        assert_eq!(
             buffer,
             Buffer::with_lines(vec![
                 "     3.000 ├ │",
@@ -307,7 +306,7 @@ mod tests {
         let widget = CandleStickChart::new(Interval::OneMinute)
             .candles(vec![Candle::new(0, 0.9, 3.0, 0.0, 2.1).unwrap()]);
         let buffer = render(widget, 30, 8);
-        assert_buffer_eq!(
+        assert_eq!(
             buffer,
             Buffer::with_lines(vec![
                 "     3.000 ├ xxxxxxxxxxxxxxxx│",
@@ -330,7 +329,7 @@ mod tests {
             Candle::new(120000, 3.9, 4.1, 2.0, 2.3).unwrap(),
         ]);
         let buffer = render(widget, 19, 8);
-        assert_buffer_eq!(
+        assert_eq!(
             buffer,
             Buffer::with_lines(vec![
                 "     4.200 ├ xxx ╽┃",
@@ -355,7 +354,7 @@ mod tests {
             Candle::new(240000, 2.0, 5.2, 0.9, 3.9).unwrap(),
         ]);
         let buffer = render(widget, 19, 8);
-        assert_buffer_eq!(
+        assert_eq!(
             buffer,
             Buffer::with_lines(vec![
                 "     5.200 ├ x ╷  │",
@@ -377,7 +376,7 @@ mod tests {
             Candle::new(240000, 2.0, 5.2, 0.9, 3.9).unwrap(),
         ]);
         let buffer = render(widget, 19, 8);
-        assert_buffer_eq!(
+        assert_eq!(
             buffer,
             Buffer::with_lines(vec![
                 "     5.200 ├ x xxx│",
@@ -400,7 +399,7 @@ mod tests {
             Candle::new(2000, 500.0, 500.0, 500.0, 500.0).unwrap(),
         ]);
         let buffer = render(widget, 16, 8);
-        assert_buffer_eq!(
+        assert_eq!(
             buffer,
             Buffer::with_lines(vec![
                 "  1000.000 ├ │  ",
@@ -423,7 +422,7 @@ mod tests {
             Candle::new(2000, 580.0, 580.0, 320.0, 320.0).unwrap(),
         ]);
         let buffer = render(widget, 16, 8);
-        assert_buffer_eq!(
+        assert_eq!(
             buffer,
             Buffer::with_lines(vec![
                 "  1000.000 ├ │  ",
