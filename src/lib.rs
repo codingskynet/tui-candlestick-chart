@@ -11,5 +11,6 @@ pub use candle::Candle;
 pub use candlestick_chart::CandleStickChart;
 pub use candlestick_chart_state::CandleStickChartState;
 pub use x_axis::Interval;
+pub use y_axis::{Grid, Numeric};
 
 pub(crate) type Float = OrderedFloat<f64>;
